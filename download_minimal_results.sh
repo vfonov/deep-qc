@@ -1,8 +1,8 @@
 #! /bin/bash
 set -e 
-prefix=""
+prefix="https://github.com/vfonov/deep-qc/releases/download/v0/"
 
-echo "Downloading minimal results, to run pretrained model 91MB in total..."
+echo "Downloading minimal results, to run pretrained model 227MB in total..."
 
 
 function download {
@@ -14,10 +14,9 @@ function download {
     done
 }
 
-download results_minimal_01.tar.xz
+download models_minimal_01.tar.xz
 
 echo "Unpacking..."
 
 mkdir -p results
-tar xJf results_minimal_01.tar.xz -C results/
-
+tar xJf models_minimal_01.tar.xz
