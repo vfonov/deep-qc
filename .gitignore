@@ -1,0 +1,20 @@
+*.mnc 
+# generated minc files
+._*   
+# files from macosx
+*~    
+# backups
+nohup.out
+.DS_Store
+
+# another projects
+fcn
+fcn2
+fcn3
+cerebellum
+hc
+
+# RAW files archives
+*.tar.xz
+
+
