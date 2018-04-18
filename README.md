@@ -1,5 +1,5 @@
 # DEEP QC
-Code for the paper Vladimir S. Fonov, Mahsa Dadar, The PREVENT-AD Research Group, D. Louis Collins **"Deep learning of quality control for stereotaxic registration of human brain MRI"** 
+Code for the paper Vladimir S. Fonov, Mahsa Dadar, The PREVENT-AD Research Group, D. Louis Collins **"Deep learning of quality control for stereotaxic registration of human brain MRI"** https://doi.org/10.1101/303487 
 
 ## Dependencies:
 * Torch:`display xlua cudnn optim paths`, optionally: `minc2-simple` 
