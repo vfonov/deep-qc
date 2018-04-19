@@ -35,7 +35,7 @@ def parse_options():
                         help="Input image prefix: <prefix>_{0,1,2}.jpg")
     parser.add_argument("--volume", type=str, 
                         help="Input minc volume (need minc2 simple)")
-    parser.add_argument("--load", type=str, default=default_data_dir+'model_r18/best_tnr_cpu.pth',
+    parser.add_argument("--load", type=str, default=default_data_dir+os.sep+'model_r18/best_tnr_cpu.pth',
                         help="Load pretrained model (mondatory)")
     parser.add_argument("--net", choices=['r18', 'r34', 'r50','r101','r152','sq101'],
                     help="Network type",default='r18')
