@@ -6,11 +6,12 @@
 # @date 13/04/2018
 
 
-
-from skimage import io, transform
+import argparse
 import os
-from minc2_simple import minc2_file 
+
 import numpy as np
+from skimage import io, transform
+from minc2_simple import minc2_file 
 
 
 def minc_to_slices(path):
@@ -24,7 +25,7 @@ def minc_to_slices(path):
     # normalize input
     _min=np.min(sample)
     _max=np.max(sample)
-    sample=(sample-_min)*(1.0/(_max-_min))-0.5
+    sample=(sample-_min)*(1.0/(_max-_min))
 
     sz=sample.shape
     
@@ -70,5 +71,5 @@ if __name__ == '__main__':
     params = parse_options()
 
     slices = minc_to_slices(params.volume)
-    for _,i in enumerate(slices):
+    for i,_ in enumerate(slices):
         io.imsave(params.output+"_{}.jpg".format(i),slices[i])
