@@ -54,9 +54,6 @@ def load_minc_images(path):
         # crop
         input_images[i]=dummy[16:240,16:240]
    
-    # io.imsave("debug_0.png",input_images[0])
-    # io.imsave("debug_1.png",input_images[1])
-    # io.imsave("debug_2.png",input_images[2])
     return [ torch.from_numpy(i).float().unsqueeze_(0) for i in input_images]
 
 
