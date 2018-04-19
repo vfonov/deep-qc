@@ -9,7 +9,7 @@ function download {
     set -e 
     for f in $@;do
         if [ ! -e ${f} ];then
-        curl "${prefix}/${f}" -o ${f}
+        curl --location "${prefix}/${f}" -o ${f}
         fi
     done
 }
