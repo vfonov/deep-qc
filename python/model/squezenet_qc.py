@@ -88,9 +88,9 @@ class SqueezeNetQC(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 if m is final_conv:
-                    init.normal(m.weight.data, mean=0.0, std=0.01)
+                    nn.init.normal_(m.weight.data, mean=0.0, std=0.01)
                 else:
-                    init.kaiming_uniform(m.weight.data)
+                    nn.init.kaiming_uniform_(m.weight.data,nonlinearity='relu')
                 if m.bias is not None:
                     m.bias.data.zero_()
 

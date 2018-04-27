@@ -58,7 +58,7 @@ class Bottleneck(nn.Module):
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
         self.downsample = downsample
         self.stride = stride
 
@@ -118,10 +118,11 @@ class ResNetQC(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(32, 32, kernel_size=1, stride=1, padding=0,bias=True),
             nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Dropout2d(p=0.5,inplace=True),
             nn.Conv2d(32, num_classes, kernel_size=1, stride=1, padding=0, bias=True)
             )
+        # initialization
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels

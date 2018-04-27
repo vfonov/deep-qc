@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 
 from torch import optim
-from torch.autograd import Variable
+#from torch.autograd import Variable
 from tensorboardX import SummaryWriter
 
 
@@ -98,7 +98,7 @@ if __name__ == '__main__':
                           shuffle=False, 
                           num_workers=params.workers)
 
-    model = get_qc_model(params,use_ref=use_ref)    
+    model = get_qc_model(params,use_ref=use_ref,pretrained=False)    
 
 
     model     = model.cuda()
@@ -142,8 +142,8 @@ if __name__ == '__main__':
         val_ctr=0
 
         for i_batch, sample_batched in enumerate(training_dataloader):
-            inputs = Variable(sample_batched['image'].cuda())
-            labels = Variable(sample_batched['status'].cuda())
+            inputs = sample_batched['image'].cuda()
+            labels = sample_batched['status'].cuda()
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -157,8 +157,10 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-            batch_loss = loss.data[0] * inputs.size(0)
-            batch_acc  = torch.sum(preds == labels.data)
+            
+
+            batch_loss = loss.data.item() * inputs.size(0)
+            batch_acc  = torch.sum(preds == labels.data).item()
 
             # statistics
             running_loss  += batch_loss
@@ -183,14 +185,14 @@ if __name__ == '__main__':
                 v_batch_an    = 0.0
 
                 for v_batch, v_sample_batched in enumerate(validation_dataloader):
-                    inputs = Variable(v_sample_batched['image'], volatile=True).cuda()
-                    labels = Variable(v_sample_batched['status'], volatile=True).cuda()
+                    inputs = v_sample_batched['image' ].cuda()
+                    labels = v_sample_batched['status'].cuda()
 
                     outputs = model(inputs)
                     _, preds = torch.max(outputs.data, 1)
                     loss = criterion(outputs, labels)
 
-                    v_batch_loss += loss.data[0] * inputs.size(0)
+                    v_batch_loss += loss.data.item() * inputs.size(0)
                     v_batch_acc  += (torch.sum(preds == labels.data))
 
                     # calculating true positive and true negative

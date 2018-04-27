@@ -22,7 +22,8 @@ from torch.autograd import Variable
 
 
 default_data_dir=os.path.dirname(sys.argv[0])
-
+if default_data_dir=='' or default_data_dir is None: default_data_dir='.'
+print(default_data_dir)
 
 def parse_options():
 
@@ -70,7 +71,7 @@ if __name__ == '__main__':
     # convert inputs into properly formated tensor
     # with a single batch dimension
     inputs = torch.cat( inputs ).unsqueeze_(0)
-    inputs = Variable( inputs )
+    #inputs = Variable( inputs )
 
     softmax=nn.Softmax(dim=1)
     outputs = softmax.forward(model(inputs))
