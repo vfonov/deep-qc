@@ -58,7 +58,7 @@ def load_minc_images(path):
 
 
 class QCDataset(Dataset):
-    """Face Landmarks dataset."""
+    """QC images dataset."""
 
     def __init__(self, db, data_prefix, use_ref=False, validate=False, training_path=True):
         """
