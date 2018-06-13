@@ -23,7 +23,6 @@ from torch.autograd import Variable
 
 default_data_dir=os.path.dirname(sys.argv[0])
 if default_data_dir=='' or default_data_dir is None: default_data_dir='.'
-print(default_data_dir)
 
 def parse_options():
 
@@ -79,7 +78,7 @@ if __name__ == '__main__':
 
     # raw score
     if params.raw:
-        print(outputs.data[0,1])
+        print(float(outputs.data[0,1]))
     elif not params.quiet:
         if preds[0]==1:
             print("Pass")
