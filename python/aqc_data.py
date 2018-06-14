@@ -44,7 +44,7 @@ def load_minc_images(path):
         # 
         _scale=min(256.0/input_images[i].shape[0],256.0/input_images[i].shape[1])
         # vertical flip and resize
-        input_images[i]=transform.rescale(input_images[i][::-1,:], _scale, mode='constant', clip=False)
+        input_images[i]=transform.rescale(input_images[i][::-1,:], _scale, mode='constant', clip=False, anti_aliasing=False, multichannel=False)
 
         sz=input_images[i].shape
         # pad image 
