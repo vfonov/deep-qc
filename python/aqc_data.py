@@ -25,19 +25,16 @@ def load_minc_images(path):
     input_minc=minc2_file(path)
     input_minc.setup_standard_order()
 
-    #load into standard volume
-    sample=input_minc.load_complete_volume(minc2_file.MINC2_FLOAT)
-    
-    # normalize input
-    _min=np.min(sample)
-    _max=np.max(sample)
-    sample=(sample-_min)*(1.0/(_max-_min))-0.5
+    sz=input_minc.shape
 
-    sz=sample.shape
-    
-    input_images=[sample[int(sz[0]/2),:,:],
-                  sample[:,:,int(sz[2]/2)],
-                  sample[:,int(sz[1]/2),:] ]
+    input_images=[input_minc[sz[0]//2,:,:],
+                  input_minc[:,:,sz[2]//2],
+                  input_minc[:,sz[1]//2,:] ]
+
+    _min=np.min( [np.min(i) for i in input_images])
+    _max=np.max( [np.max(i) for i in input_images])
+
+    input_images=[(i-_min)*(1.0/(_max-_min))-0.5 for i in input_images]
     
     # flip, resize and crop
     for i in range(3):
