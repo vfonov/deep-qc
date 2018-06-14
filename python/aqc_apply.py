@@ -43,7 +43,16 @@ def parse_options():
                         help='Print raw score [0:1]')
     parser.add_argument('-q', '--quiet', action="store_true",default=False,   
                     help='Quiet mode, set status code to 0 - Pass, 1 - fail')
-
+    parser.add_argument('--batch', type=str,   
+                    help='Process minc files in batch mode, provide list of files')
+    parser.add_argument('--batch-size', type=int, default=1, 
+                    dest='batch_size', 
+                    help='Batch size in batch mode')
+    parser.add_argument('--batch-workers', type=int, default=1,
+                    dest='batch_workers',
+                    help='Number of workers in batch mode')
+    parser.add_argument('--gpu', action="store_true",default=False,
+                    help='Run inference in gpu')
     params = parser.parse_args()
     
     return params
@@ -55,34 +64,57 @@ if __name__ == '__main__':
     if params.load is None:
         print("need to provide pre-trained model!")
         exit(1)
-    
-    if params.image is not None:
-        inputs = load_qc_images([params.image+'_0.jpg',params.image+'_1.jpg',params.image+'_2.jpg'])
-    elif params.volume is not None:
-        inputs = load_minc_images(params.volume)
-    else:
-        print("Specify input volume or image prefix")
-        exit(1)
-
+        
     model = get_qc_model(params,use_ref=use_ref)
+    if params.gpu:
+        model=model.cuda()
     model.train(False)
-
-    # convert inputs into properly formated tensor
-    # with a single batch dimension
-    inputs = torch.cat( inputs ).unsqueeze_(0)
-    #inputs = Variable( inputs )
-
     softmax=nn.Softmax(dim=1)
-    outputs = softmax.forward(model(inputs))
-    _, preds = torch.max(outputs.data, 1)
+    
+    if params.batch is not None:
+        dataset=MincVolumesDataset(csv_file=params.batch)
+        dataloader = DataLoader(dataset, 
+                          batch_size=params.batch_size,
+                          shuffle=False, 
+                          num_workers=params.batch_workers)
 
-    # raw score
-    if params.raw:
-        print(float(outputs.data[0,1]))
-    elif not params.quiet:
-        if preds[0]==1:
-            print("Pass")
-        else:
-            print("Fail")
+        for i_batch, sample_batched in enumerate(dataloader):
+            inputs, files = sample_batched
+            if params.gpu: inputs=inputs.cuda()
+            outputs = softmax.forward(model(inputs))
+            if params.gpu: outputs=outputs.cpu()
+            
+            if params.raw:
+                preds   = outputs[:,1].tolist()
+            else:
+                preds   = torch.max(outputs, 1)[1].tolist()
+
+            for i,j in zip(files,preds):
+                print("{},{}".format(i,j))
     else:
-        exit(0 if preds[0]==1 else 1)
+        if params.image is not None:
+            inputs = load_qc_images([params.image+'_0.jpg',params.image+'_1.jpg',params.image+'_2.jpg'])
+        elif params.volume is not None:
+            inputs = load_minc_images(params.volume)
+        else:
+            print("Specify input volume or image prefix or batch list")
+            exit(1)
+
+
+        # convert inputs into properly formated tensor
+        # with a single batch dimension
+        inputs = torch.cat( inputs ).unsqueeze_(0)
+
+        outputs = softmax.forward(model(inputs))
+        preds = torch.max(outputs.data, 1)[1]
+
+        # raw score
+        if params.raw:
+            print(float(outputs.data[0,1]))
+        elif not params.quiet:
+            if preds[0]==1:
+                print("Pass")
+            else:
+                print("Fail")
+        else:
+            exit(0 if preds[0]==1 else 1)

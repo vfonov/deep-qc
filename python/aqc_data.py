@@ -55,7 +55,9 @@ def load_minc_images(path):
 
 
 class QCDataset(Dataset):
-    """QC images dataset."""
+    """
+    QC images dataset. Uses sqlite3 database to load data
+    """
 
     def __init__(self, db, data_prefix, use_ref=False, validate=False, training_path=True):
         """
@@ -140,4 +142,32 @@ class QCDataset(Dataset):
             subjects.append(line[0])
         
         return samples,subjects
+
+
+class MincVolumesDataset(Dataset):
+    """
+    Minc volumes dataset, loads slices from a list of images
+    For inference in batch mode
+    Arguments:
+        file_list - list of minc files to load
+        csv_file - name of csv file to load list from (first column)
+    """
+    def __init__(self, file_list=None,csv_file=None):
+        if file_list is not None:
+            self.file_list=file_list
+        elif csv_file is not None:
+            self.file_list=[]
+            import csv
+            for r in csv.reader(open(csv_file,'r')):
+                self.file_list.append(r[0])
+        else:
+            self.file_list=[]
+        
+    def __len__(self):
+        return len(self.file_list)
+
+    def __getitem__(self, idx):
+        return torch.cat(load_minc_images(self.file_list[idx])).unsqueeze(0),self.file_list[idx]
+
+
 
