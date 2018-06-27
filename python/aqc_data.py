@@ -10,13 +10,15 @@ from skimage import io, transform
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+
 def load_qc_images(imgs):
-    ret=[]  
-    for i,j in enumerate(imgs):
+    ret = []
+    for i, j in enumerate(imgs):
         im=io.imread(j)
-        assert im.shape==(224,224)
+        assert im.shape == (224, 224)
         ret.append(torch.from_numpy(im).unsqueeze_(0).float()/255.0-0.5)
     return ret
+
 
 def load_minc_images(path):
     from minc2_simple import minc2_file 
@@ -27,31 +29,31 @@ def load_minc_images(path):
 
     sz=input_minc.shape
 
-    input_images=[input_minc[sz[0]//2,:,:],
-                  input_minc[:,:,sz[2]//2],
-                  input_minc[:,sz[1]//2,:] ]
+    input_images = [input_minc[sz[0]//2, :, :],
+                    input_minc[:, :, sz[2]//2],
+                    input_minc[:, sz[1]//2, :]]
 
-    _min=np.min( [np.min(i) for i in input_images])
-    _max=np.max( [np.max(i) for i in input_images])
+    _min=np.min([np.min(i) for i in input_images])
+    _max=np.max([np.max(i) for i in input_images])
 
-    input_images=[(i-_min)*(1.0/(_max-_min))-0.5 for i in input_images]
+    input_images = [(i-_min)*(1.0/(_max-_min))-0.5 for i in input_images]
     
     # flip, resize and crop
     for i in range(3):
         # 
-        _scale=min(256.0/input_images[i].shape[0],256.0/input_images[i].shape[1])
+        _scale = min(256.0/input_images[i].shape[0],256.0/input_images[i].shape[1])
         # vertical flip and resize
-        input_images[i]=transform.rescale(input_images[i][::-1,:], _scale, mode='constant', clip=False, anti_aliasing=False, multichannel=False)
+        input_images[i] = transform.rescale(input_images[i][::-1, :], _scale, mode='constant', clip=False, anti_aliasing=False, multichannel=False)
 
-        sz=input_images[i].shape
+        sz = input_images[i].shape
         # pad image 
-        dummy=np.zeros((256,256),)
-        dummy[int((256-sz[0])/2) : int((256-sz[0])/2)+sz[0], int((256-sz[1])/2): int((256-sz[1])/2)+sz[1]] = input_images[i]
+        dummy = np.zeros((256, 256),)
+        dummy[int((256-sz[0])/2): int((256-sz[0])/2)+sz[0], int((256-sz[1])/2): int((256-sz[1])/2)+sz[1]] = input_images[i]
 
         # crop
         input_images[i]=dummy[16:240,16:240]
    
-    return [ torch.from_numpy(i).float().unsqueeze_(0) for i in input_images]
+    return [torch.from_numpy(i).float().unsqueeze_(0) for i in input_images]
 
 
 class QCDataset(Dataset):
@@ -101,18 +103,18 @@ class QCDataset(Dataset):
 
     def load_qc_db(self, data_prefix, feat=3,training_path=True):
         # load training list
-        samples=[]
-        status=2
-        subjects=[]
+        samples = []
+        status = 2
+        subjects = []
         
         # populate table with locations of QC jpg files
         if training_path:
-            query="select variant,cohort,subject,visit,path,xfm,pass from qc_all where subject not in (select subject from mem.val_subjects)" 
+            query = "select variant,cohort,subject,visit,path,xfm,pass from qc_all where subject not in (select subject from mem.val_subjects)"
         else:
-            query="select variant,cohort,subject,visit,path,xfm,pass from qc_all where subject in (select subject from mem.val_subjects)" 
+            query = "select variant,cohort,subject,visit,path,xfm,pass from qc_all where subject in (select subject from mem.val_subjects)"
 
         for line in self.qc_db.execute(query):
-            variant,cohort,subject,visit,path,xfm,_pass=line
+            variant, cohort, subject, visit, path, xfm, _pass = line
             
             if _pass=='TRUE': status=1 
             else: status=0 
@@ -152,9 +154,9 @@ class MincVolumesDataset(Dataset):
         file_list - list of minc files to load
         csv_file - name of csv file to load list from (first column)
     """
-    def __init__(self, file_list=None,csv_file=None):
+    def __init__(self, file_list=None, csv_file=None):
         if file_list is not None:
-            self.file_list=file_list
+            self.file_list = file_list
         elif csv_file is not None:
             self.file_list=[]
             import csv
@@ -167,7 +169,33 @@ class MincVolumesDataset(Dataset):
         return len(self.file_list)
 
     def __getitem__(self, idx):
-        return torch.cat(load_minc_images(self.file_list[idx])).unsqueeze(0),self.file_list[idx]
+        return torch.cat(load_minc_images(self.file_list[idx])).unsqueeze(0),\
+               self.file_list[idx]
 
 
+class QCImagesDataset(Dataset):
+    """
+    QC images dataset, loads images identified by prefix in csv file
+    For inference in batch mode
+    Arguments:
+        file_list - list of QC images prefixes files to load
+        csv_file - name of csv file to load list from (first column should contain prefix )
+    """
 
+    def __init__(self, file_list=None, csv_file=None):
+        if file_list is not None:
+            self.file_list = file_list
+        elif csv_file is not None:
+            self.file_list = []
+            import csv
+            for r in csv.reader(open(csv_file, 'r')):
+                self.file_list.append(r[0])
+        else:
+            self.file_list = []
+
+    def __len__(self):
+        return len(self.file_list)
+
+    def __getitem__(self, idx):
+        return torch.cat(load_qc_images([self.file_list[idx]+'_{}.jpg'.format(i) for i in range(3)])).unsqueeze(0), \
+               self.file_list[idx]

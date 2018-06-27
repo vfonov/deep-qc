@@ -29,7 +29,7 @@ def parse_options():
     parser = argparse.ArgumentParser(description='Apply automated QC',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("--ref",action="store_true",default=False,
+    parser.add_argument("--ref", action="store_true", default=False,
                         help="Use reference images")
     parser.add_argument("--image", type=str, 
                         help="Input image prefix: <prefix>_{0,1,2}.jpg")
@@ -38,24 +38,27 @@ def parse_options():
     parser.add_argument("--load", type=str, default=default_data_dir+os.sep+'model_r18/best_tnr_cpu.pth',
                         help="Load pretrained model (mondatory)")
     parser.add_argument("--net", choices=['r18', 'r34', 'r50','r101','r152','sq101'],
-                    help="Network type",default='r18')
+                        help="Network type",default='r18')
     parser.add_argument('--raw', action="store_true", default=False,
                         help='Print raw score [0:1]')
     parser.add_argument('-q', '--quiet', action="store_true",default=False,   
-                    help='Quiet mode, set status code to 0 - Pass, 1 - fail')
+                        help='Quiet mode, set status code to 0 - Pass, 1 - fail')
     parser.add_argument('--batch', type=str,   
-                    help='Process minc files in batch mode, provide list of files')
+                        help='Process minc files in batch mode, provide list of files')
     parser.add_argument('--batch-size', type=int, default=1, 
-                    dest='batch_size', 
-                    help='Batch size in batch mode')
+                        dest='batch_size',
+                        help='Batch size in batch mode')
     parser.add_argument('--batch-workers', type=int, default=1,
-                    dest='batch_workers',
-                    help='Number of workers in batch mode')
-    parser.add_argument('--gpu', action="store_true",default=False,
-                    help='Run inference in gpu')
+                        dest='batch_workers',
+                        help='Number of workers in batch mode')
+    parser.add_argument('--batch_pics', action="store_true", default=False,
+                        help='Process QC pics in batch mode instead of MINC volumes')
+    parser.add_argument('--gpu', action="store_true", default=False,
+                        help='Run inference in gpu')
     params = parser.parse_args()
     
     return params
+
 
 if __name__ == '__main__':
     params = parse_options()
@@ -72,7 +75,7 @@ if __name__ == '__main__':
     softmax=nn.Softmax(dim=1)
     
     if params.batch is not None:
-        dataset=MincVolumesDataset(csv_file=params.batch)
+        dataset = MincVolumesDataset(csv_file=params.batch) if not params.batch_pics else QCImagesDataset(csv_file=params.batch)
         dataloader = DataLoader(dataset, 
                           batch_size=params.batch_size,
                           shuffle=False, 
