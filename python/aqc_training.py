@@ -169,8 +169,8 @@ if __name__ == '__main__':
             # run validation from time-to time 
             if (global_ctr%validation_period) == 0:
                 # training stats
-                writer.add_scalars('{}/training'.format(params.output), 
-                                   {'loss': batch_loss/inputs.size(0), 
+                writer.add_scalars('{}/training'.format(params.output),
+                                   {'loss': batch_loss/inputs.size(0),
                                     'acc':  batch_acc/inputs.size(0)},
                                     global_ctr)
                 # 
@@ -192,15 +192,15 @@ if __name__ == '__main__':
                     _, preds = torch.max(outputs.data, 1)
                     loss = criterion(outputs, labels)
 
-                    v_batch_loss += loss.data.item() * inputs.size(0)
-                    v_batch_acc  += (torch.sum(preds == labels.data))
+                    v_batch_loss += float(loss) * inputs.size(0)
+                    v_batch_acc  += float(torch.sum(preds == labels.data))
 
                     # calculating true positive and true negative
-                    v_batch_tp   += (torch.sum( (preds == 1)*(labels.data==1)))
-                    v_batch_tn   += (torch.sum( (preds == 0)*(labels.data==0)))
-                    v_batch_ap   += (torch.sum( (preds == 1)))
-                    v_batch_an   += (torch.sum( (preds == 0)))
-                    
+                    v_batch_tp   += float(torch.sum( (preds == 1)*(labels.data==1)))
+                    v_batch_tn   += float(torch.sum( (preds == 0)*(labels.data==0)))
+                    v_batch_ap   += float(torch.sum( (preds == 1)))
+                    v_batch_an   += float(torch.sum( (preds == 0)))
+
 
                 # (?)
                 v_batch_loss /= len(validate_dataset)
@@ -210,7 +210,7 @@ if __name__ == '__main__':
                     v_batch_tp  /= v_batch_ap
                 else:
                     v_batch_tp = 0.0
-                
+
                 if v_batch_an>0:
                     v_batch_tn  /= v_batch_an
                 else:
@@ -222,17 +222,16 @@ if __name__ == '__main__':
                 val_running_tpr  += v_batch_tp
 
                 val_ctr += 1
-                writer.add_scalars('{}/validation'.format(params.output), 
-                                   {'loss': v_batch_loss , 
+                writer.add_scalars('{}/validation'.format(params.output),
+                                   {'loss': v_batch_loss ,
                                     'acc':  v_batch_acc,
                                     'tpr':  v_batch_tp,
                                     'tnr':  v_batch_tn},
                                     global_ctr)
-                
+
                 print("{} - {},{}".format(global_ctr,v_batch_loss,v_batch_acc))
                 model.train(True)
             global_ctr += 1
-        
 
         # aggregate epoch statistics           
         epoch_loss = running_loss / dataset_size
@@ -244,8 +243,8 @@ if __name__ == '__main__':
         epoch_val_tnr  = val_running_tnr / val_ctr
 
         writer.add_scalars('{}/validation_epoch'.format(params.output), 
-                            {'loss': epoch_val_loss, 
-                             'acc':  epoch_val_acc, 
+                            {'loss': epoch_val_loss,
+                             'acc':  epoch_val_acc,
                              'tpr':  epoch_val_tpr,
                              'tnr':  epoch_val_tnr
                              },
