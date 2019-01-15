@@ -10,22 +10,7 @@ def load_model(model, to_load):
     """
     load a previously trained model.
     """
-    to_load = torch.load(to_load)
-
-    # check parameters sizes
-    model_params = set(model.state_dict().keys())
-    to_load_params = set(to_load.state_dict().keys())
-
-    assert model_params == to_load_params, (model_params - to_load_params, to_load_params - model_params)
-
-    # copy saved parameters
-    for k in model.state_dict().keys():
-        if model.state_dict()[k].size() != to_load.state_dict()[k].size():
-            raise Exception("Expected tensor {} of size {}, but got {}".format(
-                k, model.state_dict()[k].size(),
-                to_load.state_dict()[k].size()
-            ))
-        model.state_dict()[k].copy_(to_load.state_dict()[k])
+    model.load_state_dict( torch.load(to_load))
 
 def save_model(model, name, base):
     """
@@ -36,7 +21,7 @@ def save_model(model, name, base):
     
     path = os.path.join(base, '{}.pth'.format( name) )
     print('Saving the model to {} ...' .format( path))
-    torch.save(model, path)
+    torch.save(model.state_dict(), path)
 
 
 def get_qc_model(params, use_ref=False, pretrained=True):
