@@ -1,12 +1,39 @@
 # DEEP QC
+
 Code for the paper Vladimir S. Fonov, Mahsa Dadar, The PREVENT-AD Research Group, D. Louis Collins **"Deep learning of quality control for stereotaxic registration of human brain MRI"** https://doi.org/10.1101/303487 
 
-## Dependencies:
-* Torch:`display xlua cudnn optim paths`, optionally: `minc2-simple` 
-* PyTorch: `scikit-image tensorboard tensorboardX `, optionally : `minc2-simple`
-* minc2-simple (optional): https://github.com/vfonov/minc2-simple
+## Installation (Python version) using *conda* for inference
 
-## Files:
+* CPU version 
+    ```
+    conda install pytorch-cpu torchvision-cpu -c pytorch 
+    conda install scikit-image
+    ```
+* GPU version
+    ```
+    conda install pytorch torchvision -c pytorch 
+    conda install scikit-image
+    ```
+* (optional) minc toolkit and minc2-simple 
+   ```
+   conda install -c vfonov minc-toolkit-v2 minc2-simple
+   ```
+
+## Running
+
+* Inference python (pytorch) version: `python3 python/aqc_apply.py --volume <input.mnc>` or `python3 python/aqc_apply.py --image <image base>`
+* Inference lua (torch) version: `th aqc_apply.lua -volume <input.mnc>` or `th aqc_apply.lua -image <images_base>` apply pre-trained model to either a 3D minc volume or set of three images 
+* Training python version in `python` directory `run_all_experiments.sh` - will try to train all networks
+* Training lua (torch) version: `./run_all_cases.sh` - will run all the cases (needs Nvidia Titan-X)
+
+## Dependencies
+
+* python version (pytorch): `scikit-image tensorboard tensorboardX `, optionally : `minc2-simple`
+* minc2-simple (optional): https://github.com/vfonov/minc2-simple
+* Lua version (torch):`display xlua cudnn optim paths`, optionally: `minc2-simple` 
+
+## Files
+
 * Shell scripts:
     * `download_minimal_results.sh`  - download pretrained model to run automatic qc
     * `make_figures.sh`  - Draw Figure 2 and 3 for the paper
@@ -36,13 +63,8 @@ Code for the paper Vladimir S. Fonov, Mahsa Dadar, The PREVENT-AD Research Group
   * `summary.R`  - calculate summary stats 
   * `multiplot.R` - internal module for making stacked plots in ggplot
 
-## Running:
-* `./run_all_cases.sh` - will run all the cases (needs Nvidia Titan-X), using torch implementation
-* in `python` directory `run_all_experiments.sh` - will try to train all networks
-* Torch (lua) version: `th aqc_apply.lua -volume <input.mnc>` or `th aqc_apply.lua -image <images_base>` apply pre-trained model to either a 3D minc volume or set of three images 
-* PyTorch (python) version: `python3 python/aqc_apply.py --volume <input.mnc>` or `python3 python/aqc_apply.py --image <image base>`
+## Validating correct operation (requires minc-toolkit and minc2_simple python module)
 
-## Validate correct operation (requires minc-toolkit and minc2_simple python module)
 ```
 # create a file with 30 degree rotation transform
 param2xfm -rotations 30 0 0  rot_30.xfm
