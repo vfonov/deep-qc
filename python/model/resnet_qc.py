@@ -174,7 +174,7 @@ class ResNetQC(nn.Module):
         x = self.layer4(x)
 
         # merge batches together
-        x = x.view(-1, 512*self.feat, 7, 7)
+        x = x.view(-1, 512*self.feat*self.expansion, 7, 7)
         x = self.addon(x)
         x = x.view(x.size(0), -1)
 
