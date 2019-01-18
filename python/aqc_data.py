@@ -20,7 +20,7 @@ def load_qc_images(imgs):
     return ret
 
 
-def load_minc_images(path):
+def load_minc_images(path,winsorize_low=5,winsorize_high=95):
     from minc2_simple import minc2_file 
     import numpy as np
 
@@ -36,8 +36,8 @@ def load_minc_images(path):
      # normalize between 5 and 95th percentile
     _all_voxels=np.concatenate( tuple(( np.ravel(i) for i in input_images)) )
     # _all_voxels=input_minc[:,:,:] # this is slower
-    _min=np.percentile(_all_voxels,5)
-    _max=np.percentile(_all_voxels,95)
+    _min=np.percentile(_all_voxels,winsorize_low)
+    _max=np.percentile(_all_voxels,winsorize_high)
     input_images = [(i-_min)*(1.0/(_max-_min))-0.5 for i in input_images]
     
     # flip, resize and crop
@@ -156,7 +156,10 @@ class MincVolumesDataset(Dataset):
         file_list - list of minc files to load
         csv_file - name of csv file to load list from (first column)
     """
-    def __init__(self, file_list=None, csv_file=None):
+    def __init__(self, file_list=None, csv_file=None,winsorize_low=5,winsorize_high=95):
+        self.winsorize_low=winsorize_low
+        self.winsorize_high=winsorize_high
+
         if file_list is not None:
             self.file_list = file_list
         elif csv_file is not None:
@@ -171,7 +174,7 @@ class MincVolumesDataset(Dataset):
         return len(self.file_list)
 
     def __getitem__(self, idx):
-        return torch.cat(load_minc_images(self.file_list[idx])).unsqueeze(0),\
+        return torch.cat(load_minc_images(self.file_list[idx], winsorize_low=self.winsorize_low, winsorize_high=self.winsorize_high)).unsqueeze(0),\
                self.file_list[idx]
 
 
