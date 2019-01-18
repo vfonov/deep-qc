@@ -35,6 +35,8 @@ def parse_options():
                         help="Input image prefix: <prefix>_{0,1,2}.jpg")
     parser.add_argument("--volume", type=str, 
                         help="Input minc volume (need minc2 simple)")
+    parser.add_argument("--resample", type=str, 
+                        help="Resample to standard space using provided xfm, needs mincresample")
     parser.add_argument("--load", type=str, default=default_data_dir+os.sep+'model_r18/best_tnr_cpu.pth',
                         help="Load pretrained model (mondatory)")
     parser.add_argument("--net", choices=['r18', 'r34', 'r50','r101','r152','sq101'],
@@ -98,7 +100,27 @@ if __name__ == '__main__':
         if params.image is not None:
             inputs = load_qc_images([params.image+'_0.jpg',params.image+'_1.jpg',params.image+'_2.jpg'])
         elif params.volume is not None:
-            inputs = load_minc_images(params.volume)
+            tmpdir=None
+            volume=params.volume
+            if params.resample is not None:
+                import tempfile,subprocess,shutil
+                tmpdir=tempfile.mkdtemp(prefix='deep_qc')
+                tmp_vol=tmpdir+os.sep+'tmp.mnc'
+                # provide sampling in the standard space
+                try:
+                  args=['mincresample', '-q' ,'-transform',params.resample,
+                       '-dircos', '1' ,'0', '0','0', '1', '0', '0', '0', '1', 
+                       '-step', '1', '1', '1', 
+                       '-start', '-96', '-132', '-78', 
+                       '-nelements', '193', '229', '193', params.volume, tmp_vol,'-tfm_input_sampling']
+                  subprocess.check_call(args)
+                except:
+                  shutil.rmtree(tmpdir)
+                  raise
+                volume=tmp_vol
+            inputs = load_minc_images(volume)
+            if tmpdir is not None:
+                shutil.rmtree(tmpdir)
         else:
             print("Specify input volume or image prefix or batch list")
             exit(1)
@@ -121,3 +143,4 @@ if __name__ == '__main__':
                 print("Fail")
         else:
             exit(0 if preds[0]==1 else 1)
+

@@ -28,14 +28,16 @@ def load_minc_images(path):
     input_minc.setup_standard_order()
 
     sz=input_minc.shape
-
+		
     input_images = [input_minc[sz[0]//2, :, :],
                     input_minc[:, :, sz[2]//2],
                     input_minc[:, sz[1]//2, :]]
 
-    _min=np.min([np.min(i) for i in input_images])
-    _max=np.max([np.max(i) for i in input_images])
-
+     # normalize between 5 and 95th percentile
+    _all_voxels=np.concatenate( tuple(( np.ravel(i) for i in input_images)) )
+    # _all_voxels=input_minc[:,:,:] # this is slower
+    _min=np.percentile(_all_voxels,5)
+    _max=np.percentile(_all_voxels,95)
     input_images = [(i-_min)*(1.0/(_max-_min))-0.5 for i in input_images]
     
     # flip, resize and crop
