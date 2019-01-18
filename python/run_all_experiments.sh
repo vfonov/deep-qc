@@ -1,28 +1,16 @@
 #! /bin/bash
 
-if false;then
-for m in sq101 r18;do
-python3 aqc_training.py --net ${m} --adam --n_epochs 10 --batch_size 64  model_$m 2>&1 |tee log_${m}.txt
+
+for m in sq101,10,64 \
+         r18,10,64 \
+         r34,20,32 \
+         r50,20,16 \
+         r101,24,12 \
+         r152,30,8 ;do
+ i=( ${m//,/ } )
+ if [ ! -e model_${i[0]}/final.pth ];then
+ python3 aqc_training.py --net ${i[0]} --adam --n_epochs ${i[1]} --batch_size ${i[2]}  model_${i[0]} 2>&1 |tee log_${i[0]}.txt
+
+ fi
+
 done
-fi
-
-if false ;then
-for m in r34 ;do # sq101 r18  r34 r50 r101 r152 ;do
-python3 aqc_training.py --net ${m} --adam --n_epochs 20 --batch_size 32  model_$m 2>&1 |tee log_${m}.txt
-
-done
-fi
-
-if true;then
-for m in  r50 r101 ;do
-python3 aqc_training.py --net ${m} --adam --n_epochs 20 --batch_size 16  model_$m 2>&1 |tee log_${m}.txt
-done
-fi
-
-if true;then
-for m in  r152;do
-python3 aqc_training.py --net ${m} --adam --n_epochs 30 --batch_size 8  model_$m 2>&1 |tee log_${m}.txt
-done
-
-fi
-
