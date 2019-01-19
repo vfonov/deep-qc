@@ -250,6 +250,7 @@ def resnet_qc_50(pretrained=False, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
     model = ResNetQC(Bottleneck, [3, 4, 6, 3], **kwargs)
+
     if pretrained:
         model_ft = models.resnet50(pretrained=True)
         model.load_from_std(model_ft)

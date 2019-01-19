@@ -41,8 +41,8 @@ def parse_options():
                         help="Winsorize intensities in the input image", default=5.0)
     parser.add_argument("--high", type=float, 
                         help="Winsorize intensities in the input image", default=95.0)
-    parser.add_argument("--load", type=str, default=default_data_dir+os.sep+'model_r18/best_tnr_cpu.pth',
-                        help="Load pretrained model (mondatory)")
+    parser.add_argument("--load", type=str, default=None,
+                        help="Load pretrained model (will try to  load from {}".format(default_data_dir))
     parser.add_argument("--net", choices=['r18', 'r34', 'r50','r101','r152','sq101'],
                         help="Network type",default='r18')
     parser.add_argument('--raw', action="store_true", default=False,
@@ -71,9 +71,8 @@ if __name__ == '__main__':
     use_ref = False
 
     if params.load is None:
-        print("need to provide pre-trained model!")
-        exit(1)
-        
+        params.load=default_data_dir+os.sep+'model_'+params.net+os.sep+'best_tnr_cpu.pth'
+    
     model = get_qc_model(params,use_ref=use_ref)
     if params.gpu:
         model=model.cuda()
