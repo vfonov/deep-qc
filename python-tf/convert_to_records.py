@@ -13,7 +13,7 @@ tf.compat.v1.enable_eager_execution()
 
 data_prefix='../data'
 db_name='qc_db.sqlite3'
-out_filename = 'deep_qc_data.tfrecord'
+out_filename = 'deep_qc_data'
 out_subjects = 'deep_qc_subjects.csv'
 feat=3
 
@@ -80,8 +80,8 @@ def load_images(imgs,qc,subj):
         tf.string)      # the return type is `tf.string`
     return tf.reshape(tf_string, ()) # The result is a scalar
 
+# pre-shuffle dataset
 dataset_ds = dataset.map(load_images, num_parallel_calls=AUTOTUNE)
-
 
 print("writing subject embedding to {}".format(out_subjects))
 # save subject id embedding, just in case
@@ -91,10 +91,11 @@ with open(out_subjects,'w') as f:
      f.write("{},{}\n".format(i,j))
 
 #
-#
-print("writing tfrecord to {}".format(out_filename))
-###########################
+shards=4
 
-writer = tf.data.experimental.TFRecordWriter(out_filename)
-writer.write(dataset_ds)
-
+for s in range(shards):
+  out_filename_='{}_{}.tfrecord'.format(out_filename,s)
+  print("writing tfrecord to {}".format(out_filename_))
+  ###########################
+  writer = tf.data.experimental.TFRecordWriter(out_filename_)
+  writer.write( dataset_ds.shard(shards,s))

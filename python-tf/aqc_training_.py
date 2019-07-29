@@ -14,15 +14,14 @@ AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 tf.compat.v1.enable_eager_execution()
 
-BATCH_SIZE = 64
-steps_per_epoch = 200
+BATCH_SIZE = 32
+#steps_per_epoch = 200
 
 training_frac=90
 validation_frac=2
 testing_frac=8
 
-filename = 'deep_qc_data.tfrecord'
-filenames = [ filename ]
+filenames = [ 'deep_qc_data_0.tfrecord', 'deep_qc_data_1.tfrecord', 'deep_qc_data_2.tfrecord', 'deep_qc_data_3.tfrecord'  ]
 raw_ds = tf.data.TFRecordDataset( filenames )
 
 # hardcoded
@@ -62,29 +61,26 @@ parsed_ds = raw_ds.map(_parse_feature, num_parallel_calls=AUTOTUNE )
 
 # we want to split the database based on subject id's not sample id, since the same subject can be present multiple times
 # with slightly different result
-#training_ds = parsed_ds
 training_ds = parsed_ds.filter(lambda x: tf.reduce_any(tf.math.equal(tf.expand_dims(x['subj'],0),tf.expand_dims(train_subjects,1)) )) # hack
 training_ds = training_ds.map(_decode_jpeg, num_parallel_calls=AUTOTUNE )
-training_ds = training_ds.shuffle(buffer_size=1000)
+training_ds = training_ds.shuffle(buffer_size=2000) # TODO: determine optimal buffer size
 training_ds = training_ds.repeat()
 training_ds = training_ds.batch(BATCH_SIZE)
-#training_ds = training_ds.prefetch(buffer_size=BATCH_SIZE*2)
-#training_ds = training_ds.map(_reformat)
+training_ds = training_ds.prefetch(buffer_size=AUTOTUNE)
 
 testing_ds = parsed_ds.filter(lambda x: tf.reduce_any(tf.math.equal(tf.expand_dims(x['subj'],0),tf.expand_dims(testing_subjects,1)) ))
 testing_ds = testing_ds.map(_decode_jpeg,  num_parallel_calls=AUTOTUNE )
 testing_ds = testing_ds.batch(BATCH_SIZE)
-#testing_ds = testing_ds.prefetch(buffer_size=BATCH_SIZE*2)
-#testing_ds = testing_ds.map(_reformat) # TODO: replace repeat with something
 
 validation_ds = parsed_ds.filter(lambda x: tf.reduce_any(tf.math.equal(tf.expand_dims(x['subj'],0),tf.expand_dims(validation_subjects,1)) ))
+validation_ds = validation_ds.map(_decode_jpeg,  num_parallel_calls=AUTOTUNE )
 validation_ds = validation_ds.batch(BATCH_SIZE)
-#validation_ds = validation_ds.prefetch(buffer_size=BATCH_SIZE*2)
-#validation_ds = validation_ds.map(_reformat)
-
+validation_ds = validation_ds.prefetch(buffer_size=AUTOTUNE)
 
 # create Keras model
-inner_model = tf.keras.applications.MobileNetV2(input_shape=(224, 224, 1), include_top=False,weights=None)
+inner_model = tf.keras.applications.MobileNetV2(input_shape=(224, 224, 1), include_top=False, weights=None)
+#inner_model = tf.keras.applications.ResNet50(input_shape=(224, 224, 1), include_top=False, weights=None)
+
 print(inner_model.summary())
 
 # create registration classification model
@@ -102,19 +98,28 @@ x = layers.Concatenate(axis=-1)([x1,x2,x3])
 
 # learn spatial features of the merged layers
 x = layers.Conv2D(128,(1,1),activation='relu')(x)
+x = layers.BatchNormalization()(x)
 x = layers.Conv2D(16,(1,1),activation='relu')(x)
-x = layers.Conv2D(8,(1,1),activation='relu')(x)
+x = layers.BatchNormalization()(x)
+x = layers.Conv2D(4,(1,1),activation='relu')(x)
+x = layers.BatchNormalization()(x)
+# output per region activation
+x = layers.Conv2D(1,(1,1),activation='sigmoid')(x)
+x = layers.AveragePooling2D(pool_size=(7, 7))(x) # average across all image
+
 # end of spatial preprocessing
-x = layers.Flatten()(x)
-x = layers.Dense(128,activation='relu')(x)
-x = layers.Dense(2)(x)
-x = layers.Activation('softmax',name='qc')(x)
+x = layers.Flatten(name='qc')(x)
+#x = layers.Dense(128,activation='relu')(x)
+#x = layers.Dense(1,activation='sigmoid',name='qc')(x)
+#x = layers.Dense(2)(x)
+#x = layers.Activation('softmax',name='qc')(x)
 
 model = tf.keras.models.Model(inputs=[im1,im2,im3], outputs=x)
 
+# true negative rate metric
 model.compile(optimizer=tf.keras.optimizers.Nadam(),
-              loss=tf.keras.losses.sparse_categorical_crossentropy,
-              metrics=["accuracy"])
+              loss='binary_crossentropy', # tf.keras.losses.sparse_categorical_crossentropy,
+              metrics=["accuracy", tf.keras.metrics.AUC()])
 
 print(model.summary())
 
@@ -144,7 +149,7 @@ tensorboard_callback = tf.keras.callbacks.TensorBoard(
 
 # create scheduler
 
-def step_decay_schedule(initial_lr=1e-4, decay_factor=0.9, step_size=10):
+def step_decay_schedule(initial_lr=1e-4, decay_factor=0.75, step_size=4):
     '''
     Wrapper function to create a LearningRateScheduler with step decay schedule.
     '''
@@ -152,21 +157,14 @@ def step_decay_schedule(initial_lr=1e-4, decay_factor=0.9, step_size=10):
         return initial_lr * (decay_factor ** np.floor(epoch/step_size))
     return tf.keras.callbacks.LearningRateScheduler(schedule)
 
-lr_sched = step_decay_schedule(initial_lr=1e-4, decay_factor=0.9, step_size=10)
+
+lr_sched = step_decay_schedule(initial_lr=1e-5, decay_factor=0.75, step_size=4)
 
 steps_per_epoch=n_samples//BATCH_SIZE
 
-#print(training_ds)
-# debug
-#i,o=next(iter(training_ds))
-#print(repr( i['View1'] ))
-
-#exit(1)
-# fit model can use validation_split
 train_hist=model.fit(training_ds,
   validation_data=validation_ds,
-#  validation_steps=1, # TODO: fix this ?
-  epochs=10,
+  epochs=20,
   steps_per_epoch=steps_per_epoch,
   callbacks=[tensorboard_callback, cp_callback, lr_sched ]  # lr_sched
   )
