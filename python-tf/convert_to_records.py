@@ -47,8 +47,11 @@ if __name__ == '__main__':
     qc_images=[] # QC images
     qc_status=[] # QC status 1: pass 0: fail
     qc_subject=[]  # subject id
+    query = "select variant,cohort,subject,visit,path,pass from qc_all"
+    if params.shuffle:
+        query+=" order by random()"
 
-    for line in qc_db.execute("select variant,cohort,subject,visit,path,pass from qc_all"):
+    for line in qc_db.execute(query):
         variant, cohort, subject, visit, path, _pass = line
 
         if _pass=='TRUE': _status=1
@@ -77,8 +80,6 @@ if __name__ == '__main__':
 
     dataset = tf.data.Dataset.from_tensor_slices( ( qc_images, qc_status, qc_subject_idx ) )
 
-    if params.shuffle:
-      dataset=dataset.shuffle(buffer_size=len(qc_status))
 
     # hardcoded to work with three features
     def serialize_dataset(images_jpeg, qc, subj ):
@@ -123,8 +124,8 @@ if __name__ == '__main__':
             writer = tf.data.experimental.TFRecordWriter(out_filename_)
             writer.write( dataset_ds.shard(params.shard,s))
     else:
-        out_filename_ = '{}.tfrecord'.format(out_filename,s)
+        out_filename_ = '{}.tfrecord'.format(out_filename)
         print("writing tfrecord to {}".format(out_filename_))
         ###########################
         writer = tf.data.experimental.TFRecordWriter(out_filename_)
-        writer.write( dataset_ds.shard(params.shard,s))
+        writer.write( dataset_ds)
