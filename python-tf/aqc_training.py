@@ -29,13 +29,14 @@ n_subj=3331
 n_samples=57848
 
 # random permutation
+np.random.seed(42) # specify random seed, so that split is consistent
+
+# initialize subject-based split
 all_subjects=np.random.permutation(n_subj)
 
 train_subjects = tf.convert_to_tensor( all_subjects[0:n_subj*training_frac//100] )
 validation_subjects = tf.convert_to_tensor(  all_subjects[n_subj*training_frac//100:n_subj*training_frac//100+n_subj*training_frac//100] )
 testing_subjects = tf.convert_to_tensor( all_subjects[n_subj*training_frac//100+n_subj*training_frac//100:-1] )
-
-print(train_subjects)
 
 feature_description = {
     'img1_jpeg': tf.io.FixedLenFeature([], tf.string, default_value=''),
