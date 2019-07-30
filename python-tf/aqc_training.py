@@ -1,292 +1,184 @@
-#! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-#
 # @author Vladimir S. FONOV
-# @date 13/04/2018
-import argparse
-import os
+# @date 28/07/2019
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+#import os
+import tensorflow as tf
+from tensorflow.keras import layers
 import numpy as np
-import io
-import copy
 
-from aqc_data   import *
-from model.util import *
+AUTOTUNE = tf.data.experimental.AUTOTUNE
 
-import torch
-import torch.nn as nn
+tf.compat.v1.enable_eager_execution()
 
-from torch import optim
-#from torch.autograd import Variable
-from tensorboardX import SummaryWriter
+BATCH_SIZE = 32
+#steps_per_epoch = 200
+total_number_of_epochs = 100
+training_frac=90
+validation_frac=2
+testing_frac=8
 
+filenames = [ 'deep_qc_data_0.tfrecord', 'deep_qc_data_1.tfrecord', 'deep_qc_data_2.tfrecord', 'deep_qc_data_3.tfrecord'  ]
+raw_ds = tf.data.TFRecordDataset( filenames )
 
+# hardcoded
+n_subj=3331
+n_samples=57848
 
-def parse_options():
+# random permutation
+all_subjects=np.random.permutation(n_subj)
 
-    parser = argparse.ArgumentParser(description='Train automated QC',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+train_subjects = tf.convert_to_tensor( all_subjects[0:n_subj*training_frac//100] )
+validation_subjects = tf.convert_to_tensor(  all_subjects[n_subj*training_frac//100:n_subj*training_frac//100+n_subj*training_frac//100] )
+testing_subjects = tf.convert_to_tensor( all_subjects[n_subj*training_frac//100+n_subj*training_frac//100:-1] )
 
-    parser.add_argument("--n_epochs", type=int, default=10,
-                        help="Total number of epochs")
-    parser.add_argument("--epoch_size", type=int, default=10000,
-                        help="Number of samples per epoch")
-    parser.add_argument("--batch_size", type=int, default=8,
-                        help="Batch size")
-    parser.add_argument("--workers", type=int, default=2,
-                        help="Number of workers to load data")
-    parser.add_argument("--ref",action="store_true",default=False,
-                        help="Use reference images")
-    parser.add_argument("output", type=str, 
-                        help="Output prefix")
-    parser.add_argument("--load", type=str, default=None,
-                        help="Load pretrained model")
-    parser.add_argument("--val",action="store_true",default=False,
-                        help="Validate that all files are there") 
-    parser.add_argument("--net", choices=['r18', 'r34', 'r50','r101','r152','sq101'],
-                    help="Network type",default='r18')
-    parser.add_argument("--adam",action="store_true",default=False,
-                        help="Use ADAM instead of SGD") 
-    parser.add_argument("--lr",type=float, default=0.001,
-                        help="Learning rate") 
+print(train_subjects)
 
+feature_description = {
+    'img1_jpeg': tf.io.FixedLenFeature([], tf.string, default_value=''),
+    'img2_jpeg': tf.io.FixedLenFeature([], tf.string, default_value=''),
+    'img3_jpeg': tf.io.FixedLenFeature([], tf.string, default_value=''),
+    'qc':   tf.io.FixedLenFeature([], tf.int64,  default_value=0 ),
+    'subj': tf.io.FixedLenFeature([], tf.int64,  default_value=0 )
+    }
 
-    params = parser.parse_args()
-    
-    
-    return params
+def _parse_feature(i):
+    # Parse the input tf.Example proto using the dictionary above.
+    return tf.io.parse_single_example(i, feature_description)
 
-if __name__ == '__main__':
-    params = parse_options()
-    data_prefix="../data"
-    use_ref=False
-    val_subjects=100
-    db_name='qc_db.sqlite3'
-    qc_db=sqlite3.connect(data_prefix + os.sep + db_name)
+def _decode_jpeg(a):
+    img1 = tf.cast(tf.image.decode_jpeg(a['img1_jpeg'], channels=1),dtype=tf.float32)/127.5-1.0
+    img2 = tf.cast(tf.image.decode_jpeg(a['img2_jpeg'], channels=1),dtype=tf.float32)/127.5-1.0
+    img3 = tf.cast(tf.image.decode_jpeg(a['img3_jpeg'], channels=1),dtype=tf.float32)/127.5-1.0
 
-    # create table with random order if not exists
-    qc_db.executescript("""
-    create table IF NOT EXISTS all_subjects as SELECT distinct(subject) as subject from qc_all order BY RANDOM();
-    """)
-
-    # split data into testing and training,
-    # making sure we don't mix subjects
-    qc_db.executescript("""
-    ATTACH DATABASE ":memory:" AS mem;
-    create table mem.val_subjects  as SELECT subject FROM all_subjects WHERE subject IN (SELECT subject FROM all_subjects ORDER BY RANDOM() LIMIT {});
-    """.format(val_subjects))
-
-    #     create table mem.train_subjects as SELECT subject FROM mem.all_subjects WHERE subject not in (SELECT subject FROM mem.val_subjects );
-
-    train_dataset    = QCDataset(qc_db,data_prefix, use_ref=use_ref, validate=params.val, training_path=True)
-    validate_dataset = QCDataset(qc_db,data_prefix, use_ref=use_ref, validate=params.val, training_path=False)
-    print(train_dataset.validate)
-    
-    print("Training {} samples {} unique subjects".format(len(train_dataset),train_dataset.n_subjects()))
-    print("Validation {} samples {} unique subjects".format(len(validate_dataset),validate_dataset.n_subjects()))
-    # TODO: -- preshuffle all samples 
-    # TODO: -- preshuffle all subjects
-    dataset_size=len(train_dataset)
-
-    training_dataloader = DataLoader(train_dataset, 
-                          batch_size=params.batch_size,
-                          shuffle=True, 
-                          num_workers=params.workers)
-    
-    validation_dataloader = DataLoader(validate_dataset, 
-                          batch_size=params.batch_size,
-                          shuffle=False, 
-                          num_workers=params.workers)
-
-    model = get_qc_model(params,use_ref=use_ref,pretrained=False)    
+    return  {'View1':img1, 'View2':img2, 'View3':img3},{'qc':a['qc'], 'subj':a['subj']}
 
 
-    model     = model.cuda()
-    criterion = nn.CrossEntropyLoss()
-    if params.adam:
-        optimizer = optim.Adam(model.parameters(), lr=params.lr)
-    else:
-        optimizer = optim.SGD(model.parameters(), lr=params.lr, momentum=0.9)
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+parsed_ds = raw_ds.map(_parse_feature, num_parallel_calls=AUTOTUNE )
 
-    writer = SummaryWriter()
+# we want to split the database based on subject id's not sample id, since the same subject can be present multiple times
+# with slightly different result
+training_ds = parsed_ds.filter(lambda x: tf.reduce_any(tf.math.equal(tf.expand_dims(x['subj'],0),tf.expand_dims(train_subjects,1)) )) # hack
+training_ds = training_ds.map(_decode_jpeg, num_parallel_calls=AUTOTUNE )
+training_ds = training_ds.shuffle(buffer_size=2000) # TODO: determine optimal buffer size
+training_ds = training_ds.repeat()
+training_ds = training_ds.batch(BATCH_SIZE)
+training_ds = training_ds.prefetch(buffer_size=AUTOTUNE)
 
-    global_ctr = 0
-    best_model_acc = copy.deepcopy(model.state_dict())
-    best_model_tpr = copy.deepcopy(model.state_dict())
-    best_model_tnr = copy.deepcopy(model.state_dict())
+testing_ds = parsed_ds.filter(lambda x: tf.reduce_any(tf.math.equal(tf.expand_dims(x['subj'],0),tf.expand_dims(testing_subjects,1)) ))
+testing_ds = testing_ds.map(_decode_jpeg,  num_parallel_calls=AUTOTUNE )
+testing_ds = testing_ds.batch(BATCH_SIZE)
 
-    best_acc = 0.0
-    best_tnr = 0.0
-    best_tpr = 0.0
+validation_ds = parsed_ds.filter(lambda x: tf.reduce_any(tf.math.equal(tf.expand_dims(x['subj'],0),tf.expand_dims(validation_subjects,1)) ))
+validation_ds = validation_ds.map(_decode_jpeg,  num_parallel_calls=AUTOTUNE )
+validation_ds = validation_ds.batch(BATCH_SIZE)
+validation_ds = validation_ds.prefetch(buffer_size=AUTOTUNE)
 
-    validation_period = 100
+# create Keras model
+inner_model = tf.keras.applications.MobileNetV2(input_shape=(224, 224, 1), include_top=False, weights=None)
+#inner_model = tf.keras.applications.ResNet50(input_shape=(224, 224, 1), include_top=False, weights=None)
 
-    for epoch in range(params.n_epochs):
-        print('Epoch {}/{}'.format(epoch, params.n_epochs - 1))
-        print('-' * 10)
+print(inner_model.summary())
 
-        if not params.adam:
-            scheduler.step()
-        model.train(True)  # Set model to training mode
+# create registration classification model
+im1 = layers.Input(shape=(224, 224, 1),name='View1')
+im2 = layers.Input(shape=(224, 224, 1),name='View2')
+im3 = layers.Input(shape=(224, 224, 1),name='View3')
 
-        # for stats
-        running_loss = 0.0
-        running_acc  = 0.0
+# use the same inner model for three images
+x1 = inner_model(im1) # each will be  6, 6, 1280 ?
+x2 = inner_model(im2)
+x3 = inner_model(im3)
 
-        val_running_loss = 0.0
-        val_running_acc  = 0.0
-        val_running_tpr  = 0.0
-        val_running_tnr  = 0.0
+# join together
+x = layers.Concatenate(axis=-1)([x1,x2,x3])
 
-        val_ctr=0
+# learn spatial features of the merged layers
+x = layers.Conv2D(128,(1,1),activation='relu')(x)
+x = layers.BatchNormalization()(x)
+x = layers.Conv2D(16,(1,1),activation='relu')(x)
+x = layers.BatchNormalization()(x)
+x = layers.Conv2D(4,(1,1),activation='relu')(x)
+x = layers.BatchNormalization()(x)
+# output per region activation
+x = layers.Conv2D(1,(1,1),activation='sigmoid')(x)
+x = layers.AveragePooling2D(pool_size=(7, 7))(x) # average across all image
 
-        for i_batch, sample_batched in enumerate(training_dataloader):
-            inputs = sample_batched['image'].cuda()
-            labels = sample_batched['status'].cuda()
+# end of spatial preprocessing
+x = layers.Flatten(name='qc')(x)
+#x = layers.Dense(128,activation='relu')(x)
+#x = layers.Dense(1,activation='sigmoid',name='qc')(x)
+#x = layers.Dense(2)(x)
+#x = layers.Activation('softmax',name='qc')(x)
 
-            # zero the parameter gradients
-            optimizer.zero_grad()
+model = tf.keras.models.Model(inputs=[im1,im2,im3], outputs=x)
 
-            # forward
-            outputs = model(inputs)
-            _, preds = torch.max(outputs.data, 1)
-            loss = criterion(outputs, labels)
+# true negative rate metric
+model.compile(optimizer=tf.keras.optimizers.Nadam(),
+              loss='binary_crossentropy', # tf.keras.losses.sparse_categorical_crossentropy,
+              metrics=["accuracy", tf.keras.metrics.AUC()])
 
-            # if training
-            loss.backward()
-            optimizer.step()
+print(model.summary())
 
-            
-
-            batch_loss = loss.data.item() * inputs.size(0)
-            batch_acc  = torch.sum(preds == labels.data).item()
-
-            # statistics
-            running_loss  += batch_loss
-            running_acc   += batch_acc
-
-            # run validation from time-to time 
-            if (global_ctr%validation_period) == 0:
-                # training stats
-                writer.add_scalars('{}/training'.format(params.output),
-                                   {'loss': batch_loss/inputs.size(0),
-                                    'acc':  batch_acc/inputs.size(0)},
-                                    global_ctr)
-                # 
-                model.train(False)  # Set model to evaluation mode
-
-                v_batch_loss  = 0.0
-                v_batch_acc   = 0.0
-
-                v_batch_tp    = 0.0
-                v_batch_tn    = 0.0
-                v_batch_ap    = 0.0
-                v_batch_an    = 0.0
-
-                for v_batch, v_sample_batched in enumerate(validation_dataloader):
-                    inputs = v_sample_batched['image' ].cuda()
-                    labels = v_sample_batched['status'].cuda()
-
-                    outputs = model(inputs)
-                    _, preds = torch.max(outputs.data, 1)
-                    loss = criterion(outputs, labels)
-
-                    v_batch_loss += float(loss) * inputs.size(0)
-                    v_batch_acc  += float(torch.sum(preds == labels.data))
-
-                    # calculating true positive and true negative
-                    v_batch_tp   += float(torch.sum( (preds == 1)*(labels.data==1)))
-                    v_batch_tn   += float(torch.sum( (preds == 0)*(labels.data==0)))
-                    v_batch_ap   += float(torch.sum( (preds == 1)))
-                    v_batch_an   += float(torch.sum( (preds == 0)))
+#tf.keras.utils.plot_model(model, to_file='whole_model.png')
 
 
-                # (?)
-                v_batch_loss /= len(validate_dataset)
-                v_batch_acc  /= len(validate_dataset)
+# setup training process
+# start training
+from datetime import datetime
+checkpoint_path = "training/cp.ckpt"
 
-                if v_batch_ap>0:
-                    v_batch_tp  /= v_batch_ap
-                else:
-                    v_batch_tp = 0.0
+# Create checkpoint callback
+cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path,
+                                                 save_weights_only=True,
+                                                 save_best_only=True,
+                                                 mode='max',
+                                                 monitor='val_auc',
+                                                 verbose=0)
+# logging to tensorboard
+logdir="runs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
-                if v_batch_an>0:
-                    v_batch_tn  /= v_batch_an
-                else:
-                    v_batch_tn = 0.0
+tensorboard_callback = tf.keras.callbacks.TensorBoard(
+    log_dir=logdir,
+    histogram_freq=1,
+    write_grads=True,
+    write_images=True,
+    update_freq='batch',
+    profile_batch=0,
+    batch_size=BATCH_SIZE)
 
-                val_running_loss += v_batch_loss
-                val_running_acc  += v_batch_acc
-                val_running_tnr  += v_batch_tn
-                val_running_tpr  += v_batch_tp
+# create scheduler
 
-                val_ctr += 1
-                writer.add_scalars('{}/validation'.format(params.output),
-                                   {'loss': v_batch_loss ,
-                                    'acc':  v_batch_acc,
-                                    'tpr':  v_batch_tp,
-                                    'tnr':  v_batch_tn},
-                                    global_ctr)
+def step_decay_schedule(initial_lr=1e-4, decay_factor=0.9, step_size=10):
+    '''
+    Wrapper function to create a LearningRateScheduler with step decay schedule.
+    '''
+    def schedule(epoch):
+        return initial_lr * (decay_factor ** np.floor(epoch/step_size))
+    return tf.keras.callbacks.LearningRateScheduler(schedule)
 
-                print("{} - {},{}".format(global_ctr,v_batch_loss,v_batch_acc))
-                model.train(True)
-            global_ctr += 1
 
-        # aggregate epoch statistics           
-        epoch_loss = running_loss / dataset_size
-        epoch_acc  = running_acc / dataset_size
+lr_sched = step_decay_schedule(initial_lr=1e-5, decay_factor=0.9, step_size=10)
 
-        epoch_val_loss = val_running_loss / val_ctr
-        epoch_val_acc  = val_running_acc / val_ctr
-        epoch_val_tpr  = val_running_tpr / val_ctr
-        epoch_val_tnr  = val_running_tnr / val_ctr
+steps_per_epoch=n_samples//BATCH_SIZE
 
-        writer.add_scalars('{}/validation_epoch'.format(params.output), 
-                            {'loss': epoch_val_loss,
-                             'acc':  epoch_val_acc,
-                             'tpr':  epoch_val_tpr,
-                             'tnr':  epoch_val_tnr
-                             },
-                            epoch)
-        
-        print('Epoch: {} Validation Loss: {:.4f} Acc: {:.4f} TPR: {:.4f} TNR: {:.4f}'.format(epoch, epoch_val_loss, epoch_val_acc, epoch_val_tpr, epoch_val_tnr))
+# load model trained previosly
+model.load_weights('qc_mobilenet')
+# continue training
 
-        if epoch_val_acc > best_acc:
-                best_acc = epoch_val_acc
-                best_model_acc = copy.deepcopy(model.state_dict())
-                model.train(False)
-                save_model(model,"best_acc",params.output)
+train_hist=model.fit(training_ds,
+  validation_data=validation_ds,
+  epochs=total_number_of_epochs,
+  steps_per_epoch=steps_per_epoch,
+  callbacks=[tensorboard_callback, cp_callback, lr_sched ]  # lr_sched
+  )
 
-        if epoch_val_tpr > best_tpr:
-                best_tpr = epoch_val_tpr
-                best_model_tpr = copy.deepcopy(model.state_dict())
-                model.train(False)
-                save_model(model,"best_tpr",params.output)
 
-        if epoch_val_tnr > best_tnr:
-                best_tnr = epoch_val_tnr
-                best_model_tnr = copy.deepcopy(model.state_dict())
-                model.train(False)
-                save_model(model,"best_tnr",params.output)
+# save final weights
+model.save_weights('qc_mobilenet_s2')
 
-    model.train(False)
-    save_model(model,"final",params.output)
-
-    writer.export_scalars_to_json(params.output+os.sep+"./all_scalars.json")
-    writer.close()
-    
-    # get the best models
-    model.load_state_dict(best_model_acc)
-    model=model.cpu()
-    save_model(model,"best_acc_cpu",params.output)
-    
-    model.load_state_dict(best_model_tpr)
-    model=model.cpu()
-    save_model(model,"best_tpr_cpu",params.output)
-    
-    model.load_state_dict(best_model_tnr)
-    model=model.cpu()
-    save_model(model,"best_tnr_cpu",params.output)
-
-    
+# save whole model
+model.save('qc_mobilenet_s2_model.h5')
