@@ -32,7 +32,8 @@ def parse_options():
                         help="load weights from file")
     parser.add_argument("--epochs", type=int, default=100,
                         help="Batch size")
-    parser.add_argument("--output", type=str, default='qc_mobile_net_v2'
+    parser.add_argument("--output", type=str, 
+                        default='qc_mobile_net_v2',
                         help="Output prefix")
 
     params = parser.parse_args()
