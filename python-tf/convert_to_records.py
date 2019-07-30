@@ -78,7 +78,7 @@ if __name__ == '__main__':
     dataset = tf.data.Dataset.from_tensor_slices( ( qc_images, qc_status, qc_subject_idx ) )
 
     if params.shuffle:
-      dataset=dataset.shuffle(buffer_size=len())
+      dataset=dataset.shuffle(buffer_size=len(qc_status))
 
     # hardcoded to work with three features
     def serialize_dataset(images_jpeg, qc, subj ):
