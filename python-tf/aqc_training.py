@@ -28,11 +28,15 @@ def parse_options():
                         help="Batch size")
     parser.add_argument("--data", default="deep_qc_shuffled.tfrecord",
                         help="Batch size")
+    parser.add_argument("--size", type=int, default=57848,
+                        help="Number of samples")
+    parser.add_argument("--subjects", type=int, default=3331,
+                        help="Number of subjects")
     parser.add_argument("--load", type=str,
                         help="load weights from file")
     parser.add_argument("--epochs", type=int, default=100,
                         help="Batch size")
-    parser.add_argument("--output", type=str, 
+    parser.add_argument("--output", type=str,
                         default='qc_mobile_net_v2',
                         help="Output prefix")
 
@@ -54,8 +58,8 @@ if __name__ == '__main__':
     raw_ds = tf.data.TFRecordDataset( filenames )
 
     # hardcoded
-    n_subj=3331
-    n_samples=57848
+    n_subj=param.subjects
+    n_samples=param.size
 
     # random permutation
     np.random.seed(42) # specify random seed, so that split is consistent

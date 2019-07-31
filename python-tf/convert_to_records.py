@@ -22,6 +22,8 @@ def parse_options():
                         help="Data prefix")
     parser.add_argument("--shard", type=int, default=0,
                         help="Split data into pieces")
+    parser.add_argument("--limit", type=int, default=0,
+                        help="make a limited subset")
     parser.add_argument("--shuffle",action="store_true",default=False,
                         help="Shuffle input")
     parser.add_argument("output", type=str, 
@@ -50,7 +52,8 @@ if __name__ == '__main__':
     query = "select variant,cohort,subject,visit,path,pass from qc_all"
     if params.shuffle:
         query+=" order by random()"
-
+    if params.limit>0:
+        query+=" limit {}".format(params.limit)
     for line in qc_db.execute(query):
         variant, cohort, subject, visit, path, _pass = line
 
