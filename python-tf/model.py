@@ -11,13 +11,13 @@ from tensorflow.keras import layers
 import numpy as np
 
 
-def augment_inner_model(inner_model,x,out_filters=32,dropout=True):
+def augment_inner_model(inner_model, conv, x, out_filters=32, dropout=True):
     # pass through inner model to extract features
     x = inner_model(x)
-
+    x = conv(x)
     # ResNetX style learning of high order features
     # TODO: replace with SeparableConv2D ?
-    x = layers.Conv2D(out_filters, (1,1), activation='relu')(x)
+    # x = layers.Conv2D(out_filters, (1,1), activation='relu')(x)
     x = layers.BatchNormalization()(x)
 
     x = layers.DepthwiseConv2D( (3,3), activation='relu', padding='valid')(x)
@@ -27,14 +27,15 @@ def augment_inner_model(inner_model,x,out_filters=32,dropout=True):
     x = layers.BatchNormalization()(x)
 
     if dropout:
-        x = layers.SpatialDropout2D()(x)
-    
+        x = layers.SpatialDropout2D(0.5)(x)
+
     return x
 
 def create_qc_model(input_shape=(224, 224, 1), dropout=True, filters=32):
 
-    # use existing create Keras model as base
+    # use existing create Keras model as base, reduce number of channels right away
     inner_model = tf.keras.applications.MobileNetV2(input_shape=input_shape, include_top=False, weights=None)
+    conv = layers.Conv2D(filters, (1,1), activation='relu')
     #inner_model = tf.keras.applications.ResNet50(input_shape=(224, 224, 1), include_top=False, weights=None)
 
     # create registration classification model
@@ -43,9 +44,9 @@ def create_qc_model(input_shape=(224, 224, 1), dropout=True, filters=32):
     im3 = layers.Input(shape=(224, 224, 1), name='View3')
 
     # use the same inner model for three images
-    x1 = augment_inner_model(inner_model, im1, dropout=dropout, out_filters=filters) 
-    x2 = augment_inner_model(inner_model, im2, dropout=dropout, out_filters=filters)
-    x3 = augment_inner_model(inner_model, im3, dropout=dropout, out_filters=filters)
+    x1 = augment_inner_model(inner_model, conv, im1, dropout=dropout, out_filters=filters) 
+    x2 = augment_inner_model(inner_model, conv, im2, dropout=dropout, out_filters=filters)
+    x3 = augment_inner_model(inner_model, conv, im3, dropout=dropout, out_filters=filters)
 
     # join together
     x = layers.Concatenate(axis=-1)( [x1,x2,x3] )
@@ -56,6 +57,7 @@ def create_qc_model(input_shape=(224, 224, 1), dropout=True, filters=32):
 
     x = layers.Conv2D(16, (1,1), activation='relu')(x)
     x = layers.BatchNormalization()(x)
+
     x = layers.Conv2D(4, (1,1), activation='relu')(x)
     x = layers.BatchNormalization()(x)
     # output per region activation

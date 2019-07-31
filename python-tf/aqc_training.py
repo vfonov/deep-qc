@@ -17,14 +17,14 @@ from model import create_qc_model
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
-#tf.compat.v1.enable_eager_execution()
+tf.compat.v1.enable_eager_execution()
 
 
 def parse_options():
     parser = argparse.ArgumentParser(description='Convert QC data into tfrecords',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument("--batch_size", type=int, default=32,
+    parser.add_argument("--batch_size", type=int, default=16,
                         help="Batch size")
     parser.add_argument("--data", default="deep_qc_shuffled.tfrecord",
                         help="Batch size")
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     validation_ds = validation_ds.batch(BATCH_SIZE)
     validation_ds = validation_ds.prefetch(buffer_size=AUTOTUNE)
 
-    model = create_qc_model(input_shape=(224, 224, 1),dropout=True,filters=32)
+    model = create_qc_model(input_shape=(224, 224, 1), dropout=True, filters=32)
 
     model.compile(optimizer=tf.keras.optimizers.Nadam(),
                 loss='binary_crossentropy', # tf.keras.losses.sparse_categorical_crossentropy,
