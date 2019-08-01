@@ -62,7 +62,7 @@ def create_qc_model(input_shape=(224, 224, 1), dropout=True, filters=32):
     x = layers.BatchNormalization()(x)
     # output per region activation
 
-    x = layers.Conv2D(1,(1,1),activation='sigmoid')(x)
+    x = layers.Conv2D(1,(1,1))(x)
     x = layers.GlobalAveragePooling2D()(x) # average across all image
 
     # end of spatial preprocessing
