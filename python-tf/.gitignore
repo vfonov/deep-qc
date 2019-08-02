@@ -6,3 +6,7 @@ __pycache__
 *.pyc
 # raw data
 *.tfrecord
+# TPU code from google
+tpu
+master.zip
+
