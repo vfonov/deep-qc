@@ -55,6 +55,7 @@ if __name__ == '__main__':
     qc_images  = [] # QC images
     qc_status  = [] # QC status 1: pass 0: fail
     qc_subject = [] # subject id
+    qc_id      = []
 
     query = "select variant,cohort,subject,visit,path,pass from qc_all"
     if params.shuffle:
@@ -82,12 +83,13 @@ if __name__ == '__main__':
             qc_images.append( _qc )
             qc_status.append( _status )
             qc_subject.append( _subject )
+            qc_id.append( _id )
 
     # embed subject IDs
     qc_subjects_dict = { j:i for i,j in enumerate(set(qc_subject)) }
     qc_subject_idx = [ qc_subjects_dict[i] for i in qc_subject ]
 
-    dataset = tf.data.Dataset.from_tensor_slices( ( qc_images, qc_status, qc_subject_idx ) )
+    dataset = tf.data.Dataset.from_tensor_slices( ( qc_images, qc_status, qc_subject_idx, qc_id ) )
 
     np.random.seed(42) # specify random seed, so that split is consistent
     # initialize subject-based split
@@ -103,7 +105,7 @@ if __name__ == '__main__':
                  'test':testing_subjects }
 
     # hardcoded to work with three features
-    def serialize_dataset(images_jpeg, qc, subj ):
+    def serialize_dataset(images_jpeg, qc, subj, _id ):
       """
       Creates a tf.Example message ready to be written to a file.
       """
@@ -114,18 +116,18 @@ if __name__ == '__main__':
         'img2_jpeg': tf.train.Feature( bytes_list = tf.train.BytesList(value=[ images_jpeg[1].numpy() ] )),
         'img3_jpeg': tf.train.Feature( bytes_list = tf.train.BytesList(value=[ images_jpeg[2].numpy() ] )),
         'qc':        tf.train.Feature( int64_list = tf.train.Int64List(value=[ qc.numpy() ] )),
-        'subj':      tf.train.Feature( int64_list = tf.train.Int64List(value=[ subj.numpy() ] ))
+        'subj':      tf.train.Feature( int64_list = tf.train.Int64List(value=[ subj.numpy() ] )),
+        '_id':       tf.train.Feature( bytes_list = tf.train.BytesList(value=[ _id.numpy() ] ))
       }
       # Create a Features message using tf.train.Example.
       example_proto = tf.train.Example( features=tf.train.Features(feature=feature) )
       return example_proto.SerializeToString()
 
-    def load_images(imgs, qc, subj):
+    def load_images(imgs, qc, subj, qc_id):
         tf_string = tf.py_function(
-            serialize_dataset, ( tf.map_fn(tf.io.read_file,imgs), qc, subj),  # pass these args to the above function.
+            serialize_dataset, ( tf.map_fn(tf.io.read_file,imgs), qc, subj, qc_id ),  # pass these args to the above function.
             tf.string)      # the return type is `tf.string`
         return tf.reshape(tf_string, ()) # The result is a scalar
-
 
     #print("writing subject embedding to {}".format( out_subjects))
     # save subject id embedding, just in case
@@ -136,7 +138,7 @@ if __name__ == '__main__':
 
     for l,s in all_sets.items():
         dataset_ds = dataset.\
-            filter(lambda im,qc,subj:tf.reduce_any( tf.math.equal(tf.expand_dims(subj, 0), tf.expand_dims(s,1)) )).\
+            filter(lambda im,qc,subj,_id :tf.reduce_any( tf.math.equal(tf.expand_dims(subj, 0), tf.expand_dims(s,1)) )).\
             map( load_images, num_parallel_calls=AUTOTUNE)
         out_filename_ = '{}_{}.tfrecord'.format(out_filename,l)
         print("writing training tfrecord to {}".format(out_filename_))

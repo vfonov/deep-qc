@@ -5,23 +5,22 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 import argparse
-from datetime import datetime # for tensorboard
+from datetime import datetime  # for tensorboard
 import os
 
 import tensorflow as tf
+# command line configuration
 from tensorflow.python.platform import flags
-#from tensorflow.keras import layers
-#from official.mobilenet import mobilenet_v1
-#from tpu.models.official,mobilenet import mobilenet_v1
-#import mobilenet_v1
-import  official.mobilenet.mobilenet_model as mobilenet_v1
-import numpy as np
+# TPU enabled models from  https://github.com/tensorflow/tpu/
+import official.mobilenet.mobilenet_model as mobilenet_v1
 
 # local
-from model import create_qc_model
+# from model import create_qc_model
 
-from tensorflow.contrib.framework.python.ops import arg_scope
-from tensorflow.contrib.training.python.training import evaluation
+# from tensorflow.contrib.framework.python.ops import arg_scope
+# from tensorflow.contrib.training.python.training import evaluation
+
+# slim tensorflow library
 slim = tf.contrib.slim
 
 # Cloud TPU Cluster Resolver flags
@@ -51,34 +50,34 @@ tf.flags.DEFINE_integer(
     help="This is the global batch size and not the per-shard batch.")
 flags.DEFINE_integer(
     'num_cores', 1,
-    'Number of shards (workers).')    
+    'Number of shards (workers).')
 tf.flags.DEFINE_integer(
     "train_epochs", default=100,
     help="Total number of training epochs")
 tf.flags.DEFINE_integer(
     "eval_per_epoch", default=10,
     help="Total number of training steps per evaluation")
-tf.flags.DEFINE_integer(
-    "eval_steps", default=4,
-    help="Total number of evaluation steps. If `0`, evaluation "
-    "after training is skipped.")
+# tf.flags.DEFINE_integer(
+#     "eval_steps", default=4,
+#     help="Total number of evaluation steps. If `0`, evaluation "
+#     "after training is skipped.")
 tf.flags.DEFINE_integer(
     "n_samples", default=57848,
     help="Number of samples")
 flags.DEFINE_float(
-    'learning_rate', 1e-4, 'Initial learning rate')
+    'learning_rate', 1e-3, 'Initial learning rate')
 tf.flags.DEFINE_integer(
-    "learning_rate_decay_epochs", default=10, help="decay epochs")
+    "learning_rate_decay_epochs", default=4, help="decay epochs")
 flags.DEFINE_float(
-    'learning_rate_decay', default=0.9, help="decay")
+    'learning_rate_decay', default=0.75, help="decay")
 tf.flags.DEFINE_string(
     "optimizer", default="RMS",
     help="Training optimizer")
 tf.flags.DEFINE_float(
-    'depth_multiplier', default = 1.0,
+    'depth_multiplier', default=1.0,
     help="mobilenet depth multiplier")
 tf.flags.DEFINE_bool(
-    "display_tensors", default=False,
+    "display_tensors", default=True,
     help="display_tensors")
 # TPU specific parameters.
 tf.flags.DEFINE_bool(
@@ -112,187 +111,231 @@ BATCH_NORM_DECAY = 0.996
 BATCH_NORM_EPSILON = 1e-3
 
 
-def load_data(batch_size=None,filename=None,training=True):
+def load_data(batch_size=None, filename=None, training=True):
     """
     Create training dataset
     """
-    if batch_size is None : batch_size=FLAGS.batch_size
+    if batch_size is None:
+        batch_size = FLAGS.batch_size
 
     AUTOTUNE = tf.data.experimental.AUTOTUNE
-    raw_ds = tf.data.TFRecordDataset( [ filename ] )
+    raw_ds = tf.data.TFRecordDataset([filename])
 
     def _parse_feature(i):
         feature_description = {
-         'img1_jpeg': tf.io.FixedLenFeature([], tf.string, default_value=''),
-         'img2_jpeg': tf.io.FixedLenFeature([], tf.string, default_value=''),
-         'img3_jpeg': tf.io.FixedLenFeature([], tf.string, default_value=''),
-         'qc':   tf.io.FixedLenFeature([], tf.int64,  default_value=0 ),
-         'subj': tf.io.FixedLenFeature([], tf.int64,  default_value=0 )
-         }
+            'img1_jpeg': tf.io.FixedLenFeature([], tf.string, default_value=''),
+            'img2_jpeg': tf.io.FixedLenFeature([], tf.string, default_value=''),
+            'img3_jpeg': tf.io.FixedLenFeature([], tf.string, default_value=''),
+            'qc':   tf.io.FixedLenFeature([], tf.int64,  default_value=0),
+            'subj': tf.io.FixedLenFeature([], tf.int64,  default_value=0)
+        }
         # Parse the input tf.Example proto using the dictionary above.
         return tf.io.parse_single_example(i, feature_description)
 
     def _decode_jpeg(a):
-        img1 = tf.cast(tf.image.decode_jpeg(a['img1_jpeg'], channels=1),dtype=tf.float32)/127.5-1.0
-        img2 = tf.cast(tf.image.decode_jpeg(a['img2_jpeg'], channels=1),dtype=tf.float32)/127.5-1.0
-        img3 = tf.cast(tf.image.decode_jpeg(a['img3_jpeg'], channels=1),dtype=tf.float32)/127.5-1.0
+        img1 = tf.cast(tf.image.decode_jpeg(
+            a['img1_jpeg'], channels=1), dtype=tf.float32)/127.5-1.0
+        img2 = tf.cast(tf.image.decode_jpeg(
+            a['img2_jpeg'], channels=1), dtype=tf.float32)/127.5-1.0
+        img3 = tf.cast(tf.image.decode_jpeg(
+            a['img3_jpeg'], channels=1), dtype=tf.float32)/127.5-1.0
         # , 'subj':a['subj']
-        return  {'View1':img1,'View2':img2,'View3':img3}, {'qc':a['qc']}
-    
-    dataset = raw_ds.map(_parse_feature, num_parallel_calls=AUTOTUNE )
+        return {'View1': img1, 'View2': img2, 'View3': img3}, {'qc': a['qc']}
+
+    dataset = raw_ds.map(_parse_feature, num_parallel_calls=AUTOTUNE)
     # we want to split the database based on subject id's not sample id, since the same subject can be present multiple times
     # with slightly different result
-    dataset = dataset.map(_decode_jpeg, num_parallel_calls=AUTOTUNE ) #.map(_remove_subj)
+    # .map(_remove_subj)
+    dataset = dataset.map(_decode_jpeg, num_parallel_calls=AUTOTUNE)
 
     if training:
-        dataset = dataset.shuffle( buffer_size=2000 ) # TODO: determine optimal buffer size, input should be already pre-shuffled
+        # TODO: determine optimal buffer size, input should be already pre-shuffled
+        dataset = dataset.shuffle(buffer_size=2000)
         dataset = dataset.repeat()
-    
+
     dataset = dataset.batch(batch_size, drop_remainder=True)
     dataset = dataset.prefetch(buffer_size=AUTOTUNE)
     return dataset
 
+
 def model_fn(features, labels, mode, params):
-  """Mobilenet v1 model using Estimator API."""
-  num_classes = 2
-  batch_size = params['batch_size']
-  
-  training_active = (mode == tf.estimator.ModeKeys.TRAIN)
-  eval_active = (mode == tf.estimator.ModeKeys.EVAL)
+    """Mobilenet v1 model using Estimator API."""
+    num_classes = 2
+    batch_size = params['batch_size']
 
-  images = features
+    training_active = (mode == tf.estimator.ModeKeys.TRAIN)
+    eval_active = (mode == tf.estimator.ModeKeys.EVAL)
+    predict_active = (mode == tf.estimator.ModeKeys.PREDICT)
 
-  images1 = tf.reshape(images['View1'], [batch_size, 224, 224, 1])
-  images2 = tf.reshape(images['View2'], [batch_size, 224, 224, 1])
-  images3 = tf.reshape(images['View3'], [batch_size, 224, 224, 1])
-  labels  = tf.reshape(labels['qc'],    [batch_size] )
-  
-  net1 = net2 = net3 = None # HACK
+    images = features
 
-  with tf.variable_scope('MobilenetV1' ) as scope:
-    with slim.arg_scope([slim.batch_norm, slim.dropout],
-                        is_training=training_active):
-      net1, _ = mobilenet_v1.mobilenet_v1_base(images1, scope=scope)
-  with tf.variable_scope('MobilenetV1', reuse=True ) as scope:
-    with slim.arg_scope([slim.batch_norm, slim.dropout],
-                        is_training=training_active):
-      net2, _ = mobilenet_v1.mobilenet_v1_base(images2, scope=scope)
-  with tf.variable_scope('MobilenetV1', reuse=True ) as scope:
-    with slim.arg_scope([slim.batch_norm, slim.dropout],
-                        is_training=training_active):
-      net3, _ = mobilenet_v1.mobilenet_v1_base(images3, scope=scope)
+    images1 = tf.reshape(images['View1'], [batch_size, 224, 224, 1])
+    images2 = tf.reshape(images['View2'], [batch_size, 224, 224, 1])
+    images3 = tf.reshape(images['View3'], [batch_size, 224, 224, 1])
+    labels = tf.reshape(labels['qc'],    [batch_size])
 
-  with tf.variable_scope( 'MobilenetV1addon' ) as scope:
-      with slim.arg_scope([slim.batch_norm, slim.dropout],
-            is_training=training_active):
+    # if eval_active:
 
-        net = tf.concat( [net1, net2, net3 ], -1) # concatenate along feature dimension
-        net = slim.separable_convolution2d(net, num_classes*64, [3, 3])
-        net = slim.separable_convolution2d(net, num_classes*8,  [3, 3])
-        net = slim.conv2d(net, num_classes*2, [1, 1])
-        net = slim.conv2d(net, num_classes,   [1, 1])
-        net_output = tf.reduce_mean(net, [1, 2], keep_dims=False, name='global_pool')
-        logits = tf.contrib.layers.softmax( net_output )
+    # pass input through the same network
+    with tf.variable_scope('MobilenetV1') as scope:
+        with slim.arg_scope([slim.batch_norm, slim.dropout],
+                            is_training=training_active):
+            net1, _ = mobilenet_v1.mobilenet_v1_base(images1, scope=scope)
+            net1 = slim.separable_convolution2d(net1, num_classes*64, [3, 3])
+            net1 = slim.separable_convolution2d(net1, num_classes*8, [3, 3])
 
-  predictions = {
-      'classes': tf.argmax(input=net_output, axis=1 ),
-      'probabilities': logits
-  }
+    with tf.variable_scope('MobilenetV1', reuse=True) as scope:
+        with slim.arg_scope([slim.batch_norm, slim.dropout],
+                            is_training=training_active):
+            net2, _ = mobilenet_v1.mobilenet_v1_base(images2, scope=scope)
+            net2 = slim.separable_convolution2d(net2, num_classes*64, [3, 3])
+            net2 = slim.separable_convolution2d(net2, num_classes*8, [3, 3])
 
-  if mode == tf.estimator.ModeKeys.PREDICT:
-    return tf.estimator.EstimatorSpec(
-        mode=mode,
-        predictions=predictions,
-        export_outputs={
-            'classify': tf.estimator.export.PredictOutput(predictions)
+    with tf.variable_scope('MobilenetV1', reuse=True) as scope:
+        with slim.arg_scope([slim.batch_norm, slim.dropout],
+                            is_training=training_active):
+            net3, _ = mobilenet_v1.mobilenet_v1_base(images3, scope=scope)
+            net3 = slim.separable_convolution2d(net3, num_classes*64, [3, 3])
+            net3 = slim.separable_convolution2d(net3, num_classes*8, [3, 3])
+
+    with tf.variable_scope('MobilenetV1addon') as scope:
+        with slim.arg_scope([slim.batch_norm, slim.dropout],
+                            is_training=training_active):
+
+            # concatenate along feature dimension
+            net = tf.concat([net1, net2, net3], -1)
+            net = slim.conv2d(net, num_classes*2, [1, 1])
+            spatial_score = slim.conv2d(net, num_classes,   [1, 1])
+            net_output = tf.reduce_mean(
+                spatial_score, [1, 2], keep_dims=False, name='global_pool')
+            logits = tf.contrib.layers.softmax(net_output)
+
+    predictions = {
+        'classes': tf.argmax(input=net_output, axis=1),
+        'probabilities': logits
+    }
+
+    ############ DEBUG ##########
+    summary_writer = tf.contrib.summary.create_file_writer(
+        os.path.join(params['model_dir'], 'debug'), name='debug')
+
+    with summary_writer.as_default():
+        qc_pass = tf.greater(labels, 0)
+        qc_fail = tf.less(labels, 1)
+        #tf.summary.image("images1", images1)
+        tf.summary.image("images1_pass", tf.boolean_mask(images1, qc_pass))
+        tf.summary.image("images1_fail", tf.boolean_mask(images1, qc_fail))
+        tf.summary.image("images2_pass", tf.boolean_mask(images2, qc_pass))
+        tf.summary.image("images2_fail", tf.boolean_mask(images2, qc_fail))
+        tf.summary.image("images3_pass", tf.boolean_mask(images3, qc_pass))
+        tf.summary.image("images3_fail", tf.boolean_mask(images3, qc_fail))
+
+        tf.summary.histogram("spatial_score_pass_1", tf.boolean_mask(spatial_score[:,:,:,1], qc_pass))
+        tf.summary.histogram("spatial_score_fail_1", tf.boolean_mask(spatial_score[:,:,:,1], qc_fail))
+        
+        # tf.summary.image("net1_pass", tf.boolean_mask(
+        #     net1[:, :, :, 0:1], qc_pass))
+        # tf.summary.image("net1_fail", tf.boolean_mask(
+        #     net1[:, :, :, 0:1], qc_fail))
+        
+
+    if predict_active:
+        return tf.estimator.EstimatorSpec(
+            mode=mode,
+            predictions=predictions,
+            export_outputs={
+                'classify': tf.estimator.export.PredictOutput(predictions)
             })
 
-  if mode == tf.estimator.ModeKeys.EVAL and FLAGS.display_tensors and (not params['use_tpu']):
-    with tf.control_dependencies([
-        tf.Print(
-            predictions['classes'], [predictions['classes']],
-            summarize=FLAGS.batch_size,
-            message='prediction: ')
-    ]):
-      labels = tf.Print(
-          labels, [labels],
-          summarize=FLAGS.batch_size, message='label: ')
+    if eval_active and FLAGS.display_tensors and (not params['use_tpu']):
+        with tf.control_dependencies([
+            tf.Print(
+                predictions['classes'], [predictions['classes']],
+                summarize=FLAGS.batch_size,
+                message='prediction: ')
+        ]):
+            labels = tf.Print(
+                labels, [labels],
+                summarize=FLAGS.batch_size, message='label: ')
 
-  one_hot_labels = tf.one_hot(labels, num_classes, dtype=tf.int32)
+    one_hot_labels = tf.one_hot(labels, num_classes, dtype=tf.int32)
 
-  tf.losses.softmax_cross_entropy(
-      onehot_labels = one_hot_labels,
-      logits = logits,
-      weights = 1.0,
-      label_smoothing = 0.1 )
+    tf.losses.softmax_cross_entropy(
+        onehot_labels=one_hot_labels,
+        logits=logits,
+        weights=1.0,
+        label_smoothing=0.1)
 
-  loss = tf.losses.get_total_loss( add_regularization_losses=True )
+    loss = tf.losses.get_total_loss(add_regularization_losses=True)
+    initial_learning_rate = FLAGS.learning_rate * FLAGS.batch_size / 256
+    final_learning_rate = 0.0001 * initial_learning_rate
 
-  initial_learning_rate = FLAGS.learning_rate * FLAGS.batch_size / 256   
-  final_learning_rate = 0.0001 * initial_learning_rate
+    train_op = None
+    if training_active:
+        batches_per_epoch = FLAGS.n_samples // FLAGS.batch_size
+        global_step = tf.train.get_or_create_global_step()
 
-  train_op = None
-  if training_active:
-    batches_per_epoch = FLAGS.n_samples // FLAGS.batch_size
-    global_step = tf.train.get_or_create_global_step()
+        learning_rate = tf.train.exponential_decay(
+            learning_rate=initial_learning_rate,
+            global_step=global_step,
+            decay_steps=FLAGS.learning_rate_decay_epochs * batches_per_epoch,
+            decay_rate=FLAGS.learning_rate_decay,
+            staircase=True)
 
-    learning_rate = tf.train.exponential_decay(
-        learning_rate=initial_learning_rate,
-        global_step=global_step,
-        decay_steps=FLAGS.learning_rate_decay_epochs * batches_per_epoch,
-        decay_rate=FLAGS.learning_rate_decay,
-        staircase=True)
+        # Set a minimum boundary for the learning rate.
+        learning_rate = tf.maximum(
+            learning_rate,
+            final_learning_rate,
+            name='learning_rate')
 
-    # Set a minimum boundary for the learning rate.
-    learning_rate = tf.maximum(
-        learning_rate, 
-        final_learning_rate, 
-        name='learning_rate')
+        if FLAGS.optimizer == 'sgd':
+            tf.logging.info('Using SGD optimizer')
+            optimizer = tf.train.GradientDescentOptimizer(
+                learning_rate=learning_rate)
+        elif FLAGS.optimizer == 'momentum':
+            tf.logging.info('Using Momentum optimizer')
+            optimizer = tf.train.MomentumOptimizer(
+                learning_rate=learning_rate, momentum=0.9)
+        elif FLAGS.optimizer == 'RMS':
+            tf.logging.info('Using RMS optimizer')
+            optimizer = tf.train.RMSPropOptimizer(
+                learning_rate,
+                RMSPROP_DECAY,
+                momentum=RMSPROP_MOMENTUM,
+                epsilon=RMSPROP_EPSILON)
+        else:
+            tf.logging.fatal('Unknown optimizer:', FLAGS.optimizer)
 
-    if FLAGS.optimizer == 'sgd':
-      tf.logging.info('Using SGD optimizer')
-      optimizer = tf.train.GradientDescentOptimizer(
-          learning_rate=learning_rate)
-    elif FLAGS.optimizer == 'momentum':
-      tf.logging.info('Using Momentum optimizer')
-      optimizer = tf.train.MomentumOptimizer(
-          learning_rate=learning_rate, momentum=0.9)
-    elif FLAGS.optimizer == 'RMS':
-      tf.logging.info('Using RMS optimizer')
-      optimizer = tf.train.RMSPropOptimizer(
-          learning_rate,
-          RMSPROP_DECAY,
-          momentum=RMSPROP_MOMENTUM,
-          epsilon=RMSPROP_EPSILON)
-    else:
-      tf.logging.fatal('Unknown optimizer:', FLAGS.optimizer)
+        if FLAGS.use_tpu:
+            optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
 
-    if FLAGS.use_tpu:
-      optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            train_op = optimizer.minimize(loss, global_step=global_step)
+        # if FLAGS.moving_average:
+        #   ema = tf.train.ExponentialMovingAverage(
+        #       decay=MOVING_AVERAGE_DECAY, num_updates=global_step)
+        #   variables_to_average = (tf.trainable_variables() +
+        #                           tf.moving_average_variables())
+        #   with tf.control_dependencies([train_op]), tf.name_scope('moving_average'):
+        #     train_op = ema.apply(variables_to_average)
 
-    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    with tf.control_dependencies(update_ops):
-      train_op = optimizer.minimize(loss, global_step=global_step)
-    # if FLAGS.moving_average:
-    #   ema = tf.train.ExponentialMovingAverage(
-    #       decay=MOVING_AVERAGE_DECAY, num_updates=global_step)
-    #   variables_to_average = (tf.trainable_variables() +
-    #                           tf.moving_average_variables())
-    #   with tf.control_dependencies([train_op]), tf.name_scope('moving_average'):
-    #     train_op = ema.apply(variables_to_average)
+    eval_metrics = None
 
-  eval_metrics = None
+    if eval_active:
 
-  if eval_active:
-    def metric_fn(labels, predictions):
-      accuracy = tf.metrics.accuracy(labels, tf.argmax(input=logits, axis=1))
-      return {'accuracy': accuracy}
-    eval_predictions = logits
-    eval_metrics = (metric_fn, [ labels, eval_predictions] )
-    
-  return tf.contrib.tpu.TPUEstimatorSpec(
-      mode=mode, loss = loss, train_op=train_op, 
-      eval_metrics = eval_metrics)
+        def metric_fn(labels, predictions):
+            return {
+                'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=predictions, axis=1)),
+                'auc': tf.metrics.auc(labels, predictions[:, 1])
+            }
+        eval_metrics = (metric_fn, [labels, logits])
+
+    return tf.contrib.tpu.TPUEstimatorSpec(
+        mode=mode,
+        loss=loss,
+        train_op=train_op,
+        eval_metrics=eval_metrics)
 
 
 def main(argv):
@@ -300,9 +343,10 @@ def main(argv):
 
     if FLAGS.use_tpu:
         assert FLAGS.model_dir.startswith("gs://"), ("'model_dir' should be a "
-                                                 "GCS bucket path!")
+                                                     "GCS bucket path!")
         # Resolve TPU cluster and runconfig for this.
-        tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(FLAGS.tpu)
+        tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(
+            FLAGS.tpu)
     else:
         tpu_cluster_resolver = None
 
@@ -325,22 +369,24 @@ def main(argv):
         model_fn=model_fn,
         use_tpu=FLAGS.use_tpu,
         config=run_config,
-        params={}, # HACK
-        train_batch_size = FLAGS.batch_size,
-        eval_batch_size  = FLAGS.batch_size,
+        params={'model_dir': FLAGS.model_dir},
+        train_batch_size=FLAGS.batch_size,
+        eval_batch_size=FLAGS.batch_size,
         batch_axis=(batch_axis, 0))
 
-    def _train_data(params): # hack ?
-        dataset = load_data(batch_size=params['batch_size'], filename=FLAGS.training_data, training=True)
+    def _train_data(params):  # hack ?
+        dataset = load_data(
+            batch_size=params['batch_size'], filename=FLAGS.training_data, training=True)
         images, labels = dataset.make_one_shot_iterator().get_next()
         return images, labels
 
-    def _eval_data(params): # hack ?
-        dataset = load_data(batch_size=params['batch_size'], filename=FLAGS.validation_data, training=False)
+    def _eval_data(params):  # hack ?
+        dataset = load_data(
+            batch_size=params['batch_size'], filename=FLAGS.validation_data, training=False)
         images, labels = dataset.make_one_shot_iterator().get_next()
         return images, labels
 
-    eval_hooks = [] # HACK?
+    eval_hooks = []  # HACK?
 
     steps_per_cycle = FLAGS.n_samples//FLAGS.batch_size//FLAGS.eval_per_epoch
     #eval_steps     = 2*FLAGS.batch_size
@@ -349,19 +395,19 @@ def main(argv):
 
     #print("Training steps:{} Steps per evaluation:{}".format(training_steps,eval_steps))
     for cycle in range(FLAGS.train_epochs * FLAGS.eval_per_epoch):
-      tf.logging.info('Starting training cycle %d.' % cycle)
-      inception_classifier.train(
-          input_fn = _train_data,
-          steps = steps_per_cycle)
+        tf.logging.info('Starting training cycle %d.' % cycle)
+        inception_classifier.train(
+            input_fn=_train_data,
+            steps=steps_per_cycle)
 
-      tf.logging.info('Starting evaluation cycle %d .' % cycle)
-      eval_results = inception_classifier.evaluate(
-          input_fn =_eval_data, 
-          hooks = eval_hooks)
-      tf.logging.info('Evaluation results: %s' % eval_results)
+        tf.logging.info('Starting evaluation cycle %d .' % cycle)
+        eval_results = inception_classifier.evaluate(
+            input_fn=_eval_data,
+            hooks=eval_hooks)
+        tf.logging.info('Evaluation results: %s' % eval_results)
+
+
 if __name__ == '__main__':
-    #main()
+    # main()
     tf.app.run()
-    #tf.compat.v1.app.run()
-
-
+    # tf.compat.v1.app.run()
