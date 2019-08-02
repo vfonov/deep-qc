@@ -24,7 +24,6 @@ from tensorflow.contrib.framework.python.ops import arg_scope
 from tensorflow.contrib.training.python.training import evaluation
 slim = tf.contrib.slim
 
-
 # Cloud TPU Cluster Resolver flags
 tf.flags.DEFINE_string(
     "tpu", default=None,
@@ -32,7 +31,6 @@ tf.flags.DEFINE_string(
     "creating the Cloud TPU. To find out hte name of TPU, either use command "
     "'gcloud compute tpus list --zone=<zone-name>', or use "
     "'ctpu status --details' if you have created Cloud TPU using 'ctpu up'.")
-
 # Model specific parameters
 tf.flags.DEFINE_string(
     "model_dir", default="model",
@@ -40,7 +38,13 @@ tf.flags.DEFINE_string(
     "model_directory to export the checkpoints during training.")
 # Model specific parameters
 tf.flags.DEFINE_string(
-    "input_data", default="deep-qc-shuffled_20190731.tfrecord",
+    "training_data", default="deep_qc_data_shuffled_20190801_train.tfrecord",
+    help="This should be the path of GCS bucket with input data")
+tf.flags.DEFINE_string(
+    "testing_data", default="deep_qc_data_shuffled_20190801_test.tfrecord",
+    help="This should be the path of GCS bucket with input data")
+tf.flags.DEFINE_string(
+    "validation_data", default="deep_qc_data_shuffled_20190801_val.tfrecord",
     help="This should be the path of GCS bucket with input data")
 tf.flags.DEFINE_integer(
     "batch_size", default=16,
@@ -58,9 +62,6 @@ tf.flags.DEFINE_integer(
     "eval_steps", default=4,
     help="Total number of evaluation steps. If `0`, evaluation "
     "after training is skipped.")
-tf.flags.DEFINE_integer(
-    "n_subj", default=3331,
-    help="Number of subjects")
 tf.flags.DEFINE_integer(
     "n_samples", default=57848,
     help="Number of samples")
@@ -111,37 +112,14 @@ BATCH_NORM_DECAY = 0.996
 BATCH_NORM_EPSILON = 1e-3
 
 
-# hack
-n_subj=3331
-n_samples=57848
-# hack
-training_frac=90
-validation_frac=2
-testing_frac=8
-
-
-def load_data(batch_size=None):
+def load_data(batch_size=None,filename=None,training=True):
     """
     Create training dataset
     """
-    filenames=FLAGS.input_data
-
     if batch_size is None : batch_size=FLAGS.batch_size
 
-
-
-    # random permutation
-    np.random.seed(42) # specify random seed, so that split is consistent
-    # initialize subject-based split
-    all_subjects=np.random.permutation(FLAGS.n_subj)
-
     AUTOTUNE = tf.data.experimental.AUTOTUNE
-
-    raw_ds = tf.data.TFRecordDataset( filenames )
-
-    train_subjects = tf.convert_to_tensor( all_subjects[0:n_subj*training_frac//100] )
-    validation_subjects = tf.convert_to_tensor(  all_subjects[n_subj*training_frac//100:n_subj*training_frac//100+n_subj*training_frac//100] )
-    testing_subjects = tf.convert_to_tensor( all_subjects[n_subj*training_frac//100+n_subj*training_frac//100:-1] )
+    raw_ds = tf.data.TFRecordDataset( [ filename ] )
 
     def _parse_feature(i):
         feature_description = {
@@ -158,32 +136,21 @@ def load_data(batch_size=None):
         img1 = tf.cast(tf.image.decode_jpeg(a['img1_jpeg'], channels=1),dtype=tf.float32)/127.5-1.0
         img2 = tf.cast(tf.image.decode_jpeg(a['img2_jpeg'], channels=1),dtype=tf.float32)/127.5-1.0
         img3 = tf.cast(tf.image.decode_jpeg(a['img3_jpeg'], channels=1),dtype=tf.float32)/127.5-1.0
-
-        return  {'View1':img1, 'View2':img2, 'View3':img3}, {'qc':a['qc'], 'subj':a['subj']}
+        # , 'subj':a['subj']
+        return  {'View1':img1,'View2':img2,'View3':img3}, {'qc':a['qc']}
     
-    def _remove_subj(a, b):
-        return a, {'qc': b['qc'] }
-
-    parsed_ds = raw_ds.map(_parse_feature, num_parallel_calls=AUTOTUNE )
+    dataset = raw_ds.map(_parse_feature, num_parallel_calls=AUTOTUNE )
     # we want to split the database based on subject id's not sample id, since the same subject can be present multiple times
     # with slightly different result
-    training_ds = parsed_ds.filter(lambda x: tf.reduce_any(tf.math.equal(tf.expand_dims(x['subj'],0), tf.expand_dims(train_subjects,1)) )) # hack
-    training_ds = training_ds.map(_decode_jpeg, num_parallel_calls=AUTOTUNE ).map(_remove_subj)
-    training_ds = training_ds.shuffle(buffer_size=2000) # TODO: determine optimal buffer size, input should be already pre-shuffled
-    training_ds = training_ds.repeat()
-    training_ds = training_ds.batch(batch_size,drop_remainder=True)
-    training_ds = training_ds.prefetch(buffer_size=AUTOTUNE)
+    dataset = dataset.map(_decode_jpeg, num_parallel_calls=AUTOTUNE ) #.map(_remove_subj)
 
-    testing_ds = parsed_ds.filter(lambda x: tf.reduce_any(tf.math.equal(tf.expand_dims(x['subj'],0),tf.expand_dims(testing_subjects,1)) ))
-    testing_ds = testing_ds.map(_decode_jpeg,  num_parallel_calls=AUTOTUNE ).map(_remove_subj)
-    testing_ds = testing_ds.batch(batch_size,drop_remainder=True)
-
-    validation_ds = parsed_ds.filter(lambda x: tf.reduce_any(tf.math.equal(tf.expand_dims(x['subj'],0),tf.expand_dims(validation_subjects,1)) ))
-    validation_ds = validation_ds.map(_decode_jpeg,  num_parallel_calls=AUTOTUNE ).map(_remove_subj)
-    validation_ds = validation_ds.batch(batch_size,drop_remainder=True)
-    validation_ds = validation_ds.prefetch(buffer_size=AUTOTUNE)
-
-    return training_ds, testing_ds, validation_ds
+    if training:
+        dataset = dataset.shuffle( buffer_size=2000 ) # TODO: determine optimal buffer size, input should be already pre-shuffled
+        dataset = dataset.repeat()
+    
+    dataset = dataset.batch(batch_size, drop_remainder=True)
+    dataset = dataset.prefetch(buffer_size=AUTOTUNE)
+    return dataset
 
 def model_fn(features, labels, mode, params):
   """Mobilenet v1 model using Estimator API."""
@@ -198,7 +165,7 @@ def model_fn(features, labels, mode, params):
   images1 = tf.reshape(images['View1'], [batch_size, 224, 224, 1])
   images2 = tf.reshape(images['View2'], [batch_size, 224, 224, 1])
   images3 = tf.reshape(images['View3'], [batch_size, 224, 224, 1])
-  labels  = tf.reshape(labels['qc'],    [batch_size])
+  labels  = tf.reshape(labels['qc'],    [batch_size] )
   
   net1 = net2 = net3 = None # HACK
 
@@ -219,17 +186,17 @@ def model_fn(features, labels, mode, params):
       with slim.arg_scope([slim.batch_norm, slim.dropout],
             is_training=training_active):
 
-        net = tf.concat([net1, net2, net3 ],-1) # concatenate along feature dimension
+        net = tf.concat( [net1, net2, net3 ], -1) # concatenate along feature dimension
         net = slim.separable_convolution2d(net, num_classes*64, [3, 3])
         net = slim.separable_convolution2d(net, num_classes*8,  [3, 3])
         net = slim.conv2d(net, num_classes*2, [1, 1])
         net = slim.conv2d(net, num_classes,   [1, 1])
-        net = tf.reduce_mean(net, [1, 2], keep_dims=False, name='global_pool')
-        logits = tf.contrib.layers.softmax( net )
+        net_output = tf.reduce_mean(net, [1, 2], keep_dims=False, name='global_pool')
+        logits = tf.contrib.layers.softmax( net_output )
 
   predictions = {
-      'classes': tf.argmax(input=logits, axis=1),
-      'probabilities': tf.nn.softmax(logits, name='softmax_tensor')
+      'classes': tf.argmax(input=net_output, axis=1 ),
+      'probabilities': logits
   }
 
   if mode == tf.estimator.ModeKeys.PREDICT:
@@ -238,7 +205,7 @@ def model_fn(features, labels, mode, params):
         predictions=predictions,
         export_outputs={
             'classify': tf.estimator.export.PredictOutput(predictions)
-        })
+            })
 
   if mode == tf.estimator.ModeKeys.EVAL and FLAGS.display_tensors and (not params['use_tpu']):
     with tf.control_dependencies([
@@ -254,12 +221,12 @@ def model_fn(features, labels, mode, params):
   one_hot_labels = tf.one_hot(labels, num_classes, dtype=tf.int32)
 
   tf.losses.softmax_cross_entropy(
-      onehot_labels=one_hot_labels,
-      logits=logits,
-      weights=1.0,
-      label_smoothing=0.1)
+      onehot_labels = one_hot_labels,
+      logits = logits,
+      weights = 1.0,
+      label_smoothing = 0.1 )
 
-  loss = tf.losses.get_total_loss(add_regularization_losses=True)
+  loss = tf.losses.get_total_loss( add_regularization_losses=True )
 
   initial_learning_rate = FLAGS.learning_rate * FLAGS.batch_size / 256   
   final_learning_rate = 0.0001 * initial_learning_rate
@@ -278,7 +245,9 @@ def model_fn(features, labels, mode, params):
 
     # Set a minimum boundary for the learning rate.
     learning_rate = tf.maximum(
-        learning_rate, final_learning_rate, name='learning_rate')
+        learning_rate, 
+        final_learning_rate, 
+        name='learning_rate')
 
     if FLAGS.optimizer == 'sgd':
       tf.logging.info('Using SGD optimizer')
@@ -313,17 +282,17 @@ def model_fn(features, labels, mode, params):
     #     train_op = ema.apply(variables_to_average)
 
   eval_metrics = None
+
   if eval_active:
     def metric_fn(labels, predictions):
-      accuracy = tf.metrics.accuracy(labels, tf.argmax(input=predictions, axis=1))
+      accuracy = tf.metrics.accuracy(labels, tf.argmax(input=logits, axis=1))
       return {'accuracy': accuracy}
-
     eval_predictions = logits
-    eval_metrics = (metric_fn, [labels, eval_predictions])
-
+    eval_metrics = (metric_fn, [ labels, eval_predictions] )
+    
   return tf.contrib.tpu.TPUEstimatorSpec(
-      mode=mode, loss=loss, train_op=train_op, eval_metrics=eval_metrics)
-
+      mode=mode, loss = loss, train_op=train_op, 
+      eval_metrics = eval_metrics)
 
 
 def main(argv):
@@ -362,24 +331,23 @@ def main(argv):
         batch_axis=(batch_axis, 0))
 
     def _train_data(params): # hack ?
-        training_ds, testing_ds, validation_ds = load_data(batch_size=params['batch_size'])
-        images, labels = training_ds.make_one_shot_iterator().get_next()
+        dataset = load_data(batch_size=params['batch_size'], filename=FLAGS.training_data, training=True)
+        images, labels = dataset.make_one_shot_iterator().get_next()
         return images, labels
 
     def _eval_data(params): # hack ?
-        training_ds, testing_ds, validation_ds = load_data(batch_size=params['batch_size'])
-        images, labels = validation_ds.make_one_shot_iterator().get_next()
+        dataset = load_data(batch_size=params['batch_size'], filename=FLAGS.validation_data, training=False)
+        images, labels = dataset.make_one_shot_iterator().get_next()
         return images, labels
 
     eval_hooks = [] # HACK?
 
-    steps_per_cycle = n_samples//FLAGS.batch_size//FLAGS.eval_per_epoch
-    training_steps = training_frac*steps_per_cycle//100
-    eval_steps  = n_samples*validation_frac*steps_per_cycle//100//FLAGS.batch_size
+    steps_per_cycle = FLAGS.n_samples//FLAGS.batch_size//FLAGS.eval_per_epoch
+    #eval_steps     = 2*FLAGS.batch_size
 
-    eval_steps = 1 if eval_steps<1 else eval_steps
+    #eval_steps = 1 if eval_steps<1 else eval_steps
 
-    print("Training steps:{} Steps per evaluation:{}".format(training_steps,eval_steps))
+    #print("Training steps:{} Steps per evaluation:{}".format(training_steps,eval_steps))
     for cycle in range(FLAGS.train_epochs * FLAGS.eval_per_epoch):
       tf.logging.info('Starting training cycle %d.' % cycle)
       inception_classifier.train(
@@ -389,7 +357,6 @@ def main(argv):
       tf.logging.info('Starting evaluation cycle %d .' % cycle)
       eval_results = inception_classifier.evaluate(
           input_fn =_eval_data, 
-          steps = eval_steps, 
           hooks = eval_hooks)
       tf.logging.info('Evaluation results: %s' % eval_results)
 if __name__ == '__main__':
