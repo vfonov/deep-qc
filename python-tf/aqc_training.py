@@ -12,7 +12,7 @@ import tensorflow as tf
 # command line configuration
 from tensorflow.python.platform import flags
 # TPU enabled models from  https://github.com/tensorflow/tpu/
-import official.mobilenet.mobilenet_model as mobilenet_v1
+#import official.mobilenet.mobilenet_model as mobilenet_v1
 
 # local
 # from model import create_qc_model
@@ -65,7 +65,7 @@ tf.flags.DEFINE_integer(
     "n_samples", default=57848,
     help="Number of samples")
 flags.DEFINE_float(
-    'learning_rate', 1e-3, 'Initial learning rate')
+    'learning_rate', 1e-6, 'Initial learning rate')
 tf.flags.DEFINE_integer(
     "learning_rate_decay_epochs", default=4, help="decay epochs")
 flags.DEFINE_float(
@@ -110,8 +110,27 @@ MOVING_AVERAGE_DECAY = 0.995
 BATCH_NORM_DECAY = 0.996
 BATCH_NORM_EPSILON = 1e-3
 
+def create_inner_model(i, scope=None, is_training=True):
+    with tf.variable_scope(scope) as _scope:
+        # a simple model
+        with slim.arg_scope([slim.batch_norm, slim.dropout],
+                             is_training=is_training):
+            net = slim.conv2d(i,   64, [3, 3])
+            net = slim.avg_pool2d(net, [2, 2]) # 1
+            net = slim.conv2d(net, 64, [3, 3]) 
+            net = slim.avg_pool2d(net, [2, 2]) # 2
+            net = slim.conv2d(net, 64, [3, 3])
+            net = slim.avg_pool2d(net, [2, 2]) # 3
+            net = slim.conv2d(net, 64, [3, 3])
+            net = slim.avg_pool2d(net, [2, 2]) # 4 
+            net = slim.conv2d(net, 64, [3, 3])
+            net = slim.avg_pool2d(net, [2, 2]) # 5
+            net = slim.conv2d(net, 64, [3, 3])
+            net = slim.avg_pool2d(net, [2, 2]) # 6
+    return net, None
 
-def load_data(batch_size=None, filename=None, training=True):
+
+def load_data(batch_size=None, filenames=None, training=True):
     """
     Create training dataset
     """
@@ -119,7 +138,7 @@ def load_data(batch_size=None, filename=None, training=True):
         batch_size = FLAGS.batch_size
 
     AUTOTUNE = tf.data.experimental.AUTOTUNE
-    raw_ds = tf.data.TFRecordDataset([filename])
+    raw_ds = tf.data.TFRecordDataset(filenames)
 
     def _parse_feature(i):
         feature_description = {
@@ -172,7 +191,7 @@ def model_fn(features, labels, mode, params):
     images1 = tf.reshape(images['View1'], [batch_size, 224, 224, 1])
     images2 = tf.reshape(images['View2'], [batch_size, 224, 224, 1])
     images3 = tf.reshape(images['View3'], [batch_size, 224, 224, 1])
-    labels = tf.reshape(labels['qc'],    [batch_size])
+    labels  = tf.reshape(labels['qc'],    [batch_size])
 
     # if eval_active:
 
@@ -180,21 +199,21 @@ def model_fn(features, labels, mode, params):
     with tf.variable_scope('MobilenetV1') as scope:
         with slim.arg_scope([slim.batch_norm, slim.dropout],
                             is_training=training_active):
-            net1, _ = mobilenet_v1.mobilenet_v1_base(images1, scope=scope)
+            net1, _ = create_inner_model(images1, scope=scope)
             net1 = slim.separable_convolution2d(net1, num_classes*64, [3, 3])
             net1 = slim.separable_convolution2d(net1, num_classes*8, [3, 3])
 
     with tf.variable_scope('MobilenetV1', reuse=True) as scope:
         with slim.arg_scope([slim.batch_norm, slim.dropout],
                             is_training=training_active):
-            net2, _ = mobilenet_v1.mobilenet_v1_base(images2, scope=scope)
+            net2, _ = create_inner_model(images2, scope=scope)
             net2 = slim.separable_convolution2d(net2, num_classes*64, [3, 3])
             net2 = slim.separable_convolution2d(net2, num_classes*8, [3, 3])
 
     with tf.variable_scope('MobilenetV1', reuse=True) as scope:
         with slim.arg_scope([slim.batch_norm, slim.dropout],
                             is_training=training_active):
-            net3, _ = mobilenet_v1.mobilenet_v1_base(images3, scope=scope)
+            net3, _ = create_inner_model(images3, scope=scope)
             net3 = slim.separable_convolution2d(net3, num_classes*64, [3, 3])
             net3 = slim.separable_convolution2d(net3, num_classes*8, [3, 3])
 
@@ -204,10 +223,10 @@ def model_fn(features, labels, mode, params):
 
             # concatenate along feature dimension
             net = tf.concat([net1, net2, net3], -1)
-            net = slim.conv2d(net, num_classes*2, [1, 1])
-            spatial_score = slim.conv2d(net, num_classes,   [1, 1])
+            net = slim.conv2d(net, num_classes*2, [3, 3], padding='VALID')
+            net = slim.conv2d(net, num_classes,   [1, 1])
             net_output = tf.reduce_mean(
-                spatial_score, [1, 2], keep_dims=False, name='global_pool')
+                net, [1, 2], keep_dims=False, name='global_pool')
             logits = tf.contrib.layers.softmax(net_output)
 
     predictions = {
@@ -222,16 +241,17 @@ def model_fn(features, labels, mode, params):
     with summary_writer.as_default():
         qc_pass = tf.greater(labels, 0)
         qc_fail = tf.less(labels, 1)
-        #tf.summary.image("images1", images1)
-        tf.summary.image("images1_pass", tf.boolean_mask(images1, qc_pass))
-        tf.summary.image("images1_fail", tf.boolean_mask(images1, qc_fail))
-        tf.summary.image("images2_pass", tf.boolean_mask(images2, qc_pass))
-        tf.summary.image("images2_fail", tf.boolean_mask(images2, qc_fail))
-        tf.summary.image("images3_pass", tf.boolean_mask(images3, qc_pass))
-        tf.summary.image("images3_fail", tf.boolean_mask(images3, qc_fail))
 
-        tf.summary.histogram("spatial_score_pass_1", tf.boolean_mask(spatial_score[:,:,:,1], qc_pass))
-        tf.summary.histogram("spatial_score_fail_1", tf.boolean_mask(spatial_score[:,:,:,1], qc_fail))
+        # tf.summary.image("images1", images1)
+        # tf.summary.image("images1_pass", tf.boolean_mask(images1, qc_pass))
+        # tf.summary.image("images1_fail", tf.boolean_mask(images1, qc_fail))
+        # tf.summary.image("images2_pass", tf.boolean_mask(images2, qc_pass))
+        # tf.summary.image("images2_fail", tf.boolean_mask(images2, qc_fail))
+        # tf.summary.image("images3_pass", tf.boolean_mask(images3, qc_pass))
+        # tf.summary.image("images3_fail", tf.boolean_mask(images3, qc_fail))
+
+        tf.summary.histogram( "spatial_score_pass_1", tf.boolean_mask(net[:,:,:,1], qc_pass))
+        tf.summary.histogram( "spatial_score_fail_1", tf.boolean_mask(net[:,:,:,1], qc_fail))
         
         # tf.summary.image("net1_pass", tf.boolean_mask(
         #     net1[:, :, :, 0:1], qc_pass))
@@ -376,18 +396,21 @@ def main(argv):
 
     def _train_data(params):  # hack ?
         dataset = load_data(
-            batch_size=params['batch_size'], filename=FLAGS.training_data, training=True)
+            batch_size=params['batch_size'], 
+            filenames=['test_train_TRUE.tfrecord', 'test_train_FALSE.tfrecord'], 
+            training=True)
         images, labels = dataset.make_one_shot_iterator().get_next()
         return images, labels
 
     def _eval_data(params):  # hack ?
         dataset = load_data(
-            batch_size=params['batch_size'], filename=FLAGS.validation_data, training=False)
+            batch_size=params['batch_size'], 
+            filenames=['test_val_TRUE.tfrecord', 'test_val_FALSE.tfrecord'], 
+            training=False)
         images, labels = dataset.make_one_shot_iterator().get_next()
         return images, labels
 
     eval_hooks = []  # HACK?
-
     steps_per_cycle = FLAGS.n_samples//FLAGS.batch_size//FLAGS.eval_per_epoch
     #eval_steps     = 2*FLAGS.batch_size
 
@@ -395,12 +418,12 @@ def main(argv):
 
     #print("Training steps:{} Steps per evaluation:{}".format(training_steps,eval_steps))
     for cycle in range(FLAGS.train_epochs * FLAGS.eval_per_epoch):
-        tf.logging.info('Starting training cycle %d.' % cycle)
+        #tf.logging.info('Starting training cycle %d.' % cycle)
         inception_classifier.train(
             input_fn=_train_data,
             steps=steps_per_cycle)
 
-        tf.logging.info('Starting evaluation cycle %d .' % cycle)
+        #tf.logging.info('Starting evaluation cycle %d .' % cycle)
         eval_results = inception_classifier.evaluate(
             input_fn=_eval_data,
             hooks=eval_hooks)
