@@ -75,11 +75,11 @@ tf.flags.DEFINE_integer(
     "n_samples", default=57848,
     help="Number of samples")
 flags.DEFINE_float(
-    'learning_rate', 1e-2, 'Initial learning rate')
+    'learning_rate', 0.001, 'Initial learning rate')
 tf.flags.DEFINE_integer(
-    "learning_rate_decay_epochs", default=4, help="decay epochs")
+    "learning_rate_decay_epochs", default=8, help="decay epochs")
 flags.DEFINE_float(
-    'learning_rate_decay', default=0.9, help="decay")
+    'learning_rate_decay', default=0.75, help="decay")
 tf.flags.DEFINE_string(
     "optimizer", default="ADAM",
     help="Training optimizer")
@@ -261,7 +261,7 @@ def model_fn(features, labels, mode, params):
         label_smoothing=0.0)
 
     loss = tf.losses.get_total_loss(add_regularization_losses=True)
-    initial_learning_rate = FLAGS.learning_rate * FLAGS.batch_size / 256
+    initial_learning_rate = FLAGS.learning_rate  # * FLAGS.batch_size / 256
     final_learning_rate = 0.0001 * initial_learning_rate
 
     train_op = None
