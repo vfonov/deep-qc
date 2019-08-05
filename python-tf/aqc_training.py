@@ -17,7 +17,12 @@ from tensorflow.python.platform import flags
 from os.path import dirname
 sys.path.append(os.path.join(dirname(__file__),'tpu/models/'))
 
-import official.mobilenet.mobilenet_model as mobilenet_v1
+#import official.mobilenet.mobilenet_model as mobilenet_v1
+from nets.resnet_v2 import resnet_v2_50
+
+# using standard resnet
+#import tensorflow.models.research.
+
 
 # local
 # from model import create_qc_model
@@ -42,13 +47,13 @@ tf.flags.DEFINE_string(
     "model_directory to export the checkpoints during training.")
 # Model specific parameters
 tf.flags.DEFINE_string(
-    "training_data", default="deep_qc_data_shuffled_20190801_train.tfrecord",
+    "training_data", default="deep_qc_data_shuffled_20190805_train.tfrecord",
     help="This should be the path of GCS bucket with input data")
 tf.flags.DEFINE_string(
-    "testing_data", default="deep_qc_data_shuffled_20190801_test.tfrecord",
+    "testing_data", default="deep_qc_data_shuffled_20190805_test.tfrecord",
     help="This should be the path of GCS bucket with input data")
 tf.flags.DEFINE_string(
-    "validation_data", default="deep_qc_data_shuffled_20190801_val.tfrecord",
+    "validation_data", default="deep_qc_data_shuffled_20190805_val.tfrecord",
     help="This should be the path of GCS bucket with input data")
 tf.flags.DEFINE_integer(
     "batch_size", default=16,
@@ -70,13 +75,13 @@ tf.flags.DEFINE_integer(
     "n_samples", default=57848,
     help="Number of samples")
 flags.DEFINE_float(
-    'learning_rate', 1e-3, 'Initial learning rate')
+    'learning_rate', 1e-2, 'Initial learning rate')
 tf.flags.DEFINE_integer(
     "learning_rate_decay_epochs", default=4, help="decay epochs")
 flags.DEFINE_float(
-    'learning_rate_decay', default=0.75, help="decay")
+    'learning_rate_decay', default=0.9, help="decay")
 tf.flags.DEFINE_string(
-    "optimizer", default="RMS",
+    "optimizer", default="ADAM",
     help="Training optimizer")
 tf.flags.DEFINE_float(
     'depth_multiplier', default=1.0,
@@ -116,11 +121,12 @@ BATCH_NORM_DECAY = 0.996
 BATCH_NORM_EPSILON = 1e-3
 
 
-def create_inner_model(images, scope=None,is_training=True,reuse=False):
-    with tf.variable_scope(scope,reuse=reuse) as _scope:
+def create_inner_model(images, scope=None, is_training=True,reuse=False):
+    with tf.variable_scope(scope, reuse=reuse) as _scope:
             with slim.arg_scope([slim.batch_norm, slim.dropout],
                                 is_training=is_training):
-                net, _ = mobilenet_v1.mobilenet_v1_base(images, scope=_scope)
+                #net, _ = mobilenet_v1.mobilenet_v1_base(images, scope=_scope)
+                net, _ = resnet_v2_50(images, scope=scope,is_training=is_training)
                 net = slim.conv2d(net, 1024, [1, 1])
                 net = slim.conv2d(net, 512,  [1, 1])
     return net
@@ -190,11 +196,11 @@ def model_fn(features, labels, mode, params):
     # if eval_active:
 
     # pass input through the same network
-    net1 = create_inner_model(images1, scope='MobilenetV1', is_training=training_active)
-    net2 = create_inner_model(images2, scope='MobilenetV1', is_training=training_active, reuse=True)
-    net3 = create_inner_model(images3, scope='MobilenetV1', is_training=training_active, reuse=True)
+    net1 = create_inner_model(images1, scope='InnerModel', is_training=training_active)
+    net2 = create_inner_model(images2, scope='InnerModel', is_training=training_active, reuse=True)
+    net3 = create_inner_model(images3, scope='InnerModel', is_training=training_active, reuse=True)
 
-    with tf.variable_scope('MobilenetV1addon') as scope:
+    with tf.variable_scope('addon') as scope:
         with slim.arg_scope([slim.batch_norm, slim.dropout],
                             is_training=training_active):
 
@@ -204,7 +210,7 @@ def model_fn(features, labels, mode, params):
             net = slim.conv2d(net, 64, [1, 1])
             net = slim.flatten(net) # 64*7*7=3136 features
             net = slim.fully_connected(net, 1024)
-            net = slim.dropout(net,0.4)
+            net = slim.dropout(net,0.5)
             net_output = slim.fully_connected(net, num_classes)
             #
             logits = tf.contrib.layers.softmax( net_output )
@@ -222,7 +228,7 @@ def model_fn(features, labels, mode, params):
         #qc_pass = tf.greater(labels, 0)
         label_1 = tf.equal(labels, 1)
 
-        tf.summary.image("images1", images1)
+        # tf.summary.image("images1", images1)
         # tf.summary.image("images1_pass", tf.boolean_mask(images1, qc_pass))
         # tf.summary.image("images1_fail", tf.boolean_mask(images1, qc_fail))
         # tf.summary.image("images2_pass", tf.boolean_mask(images2, qc_pass))
@@ -238,7 +244,6 @@ def model_fn(features, labels, mode, params):
         # tf.summary.image("net1_fail", tf.boolean_mask(
         #     net1[:, :, :, 0:1], qc_fail))
         
-
     if predict_active:
         return tf.estimator.EstimatorSpec(
             mode=mode,
@@ -246,17 +251,6 @@ def model_fn(features, labels, mode, params):
             export_outputs={
                 'classify': tf.estimator.export.PredictOutput(predictions)
             })
-
-    if eval_active and FLAGS.display_tensors and (not params['use_tpu']):
-        with tf.control_dependencies([
-            tf.Print(
-                predictions['classes'], [predictions['classes']],
-                summarize=FLAGS.batch_size,
-                message='prediction: ')
-        ]):
-            labels = tf.Print(
-                labels, [labels],
-                summarize=FLAGS.batch_size, message='label: ')
 
     one_hot_labels = tf.one_hot(labels, num_classes, dtype=tf.int32)
 
@@ -303,6 +297,10 @@ def model_fn(features, labels, mode, params):
                 RMSPROP_DECAY,
                 momentum=RMSPROP_MOMENTUM,
                 epsilon=RMSPROP_EPSILON)
+        elif FLAGS.optimizer == 'ADAM':
+            tf.logging.info('Using ADAM optimizer')
+            optimizer = tf.train.AdamOptimizer(
+                learning_rate=learning_rate)
         else:
             tf.logging.fatal('Unknown optimizer:', FLAGS.optimizer)
 
@@ -340,7 +338,7 @@ def model_fn(features, labels, mode, params):
 
 def main(argv):
     del argv  # Unused
-
+    tf.logging.set_verbosity('WARN')
     if FLAGS.use_tpu:
         assert FLAGS.model_dir.startswith("gs://"), ("'model_dir' should be a "
                                                      "GCS bucket path!")
