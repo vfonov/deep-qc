@@ -7,7 +7,6 @@ tf.compat.v1.enable_eager_execution()
 
 rec='deep_qc_data_shuffled_20190801_train.tfrecord'
 
-
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 raw_ds = tf.data.TFRecordDataset([rec])
 
