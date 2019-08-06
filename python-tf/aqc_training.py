@@ -424,16 +424,16 @@ def main(argv):
             batch_size=params['batch_size'], 
             filenames=[FLAGS.training_data],
             training=True)
-        images, labels = dataset.make_one_shot_iterator().get_next()
-        return images, labels
+        #images, labels = dataset.make_one_shot_iterator().get_next()
+        return dataset
 
     def _eval_data(params):  # hack ?
         dataset = load_data(
             batch_size=params['batch_size'], 
             filenames=[FLAGS.validation_data],
             training=False)
-        images, labels = dataset.make_one_shot_iterator().get_next()
-        return images, labels
+        #images, labels = dataset.make_one_shot_iterator().get_next()
+        return dataset
 
     if FLAGS.moving_average:
         eval_hooks = [LoadEMAHook(FLAGS.model_dir)]
