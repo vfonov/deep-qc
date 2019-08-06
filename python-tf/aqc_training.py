@@ -382,7 +382,7 @@ def model_fn(features, labels, mode, params):
 
 def main(argv):
     del argv  # Unused
-    tf.logging.set_verbosity('WARN')
+    #tf.logging.set_verbosity('WARN')
     if FLAGS.use_tpu:
         assert FLAGS.model_dir.startswith("gs://"), ("'model_dir' should be a "
                                                      "GCS bucket path!")
