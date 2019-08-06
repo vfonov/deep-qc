@@ -332,7 +332,7 @@ def model_fn(features, labels, mode, params):
             return {
                 'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=predictions, axis=1)),
                 'auc': tf.metrics.auc(labels, logits[:, 1]),
-                'tnr': tf.metrics.true_negatives(labels, logits[:, 1])
+                'tnr': tf.metrics.true_negatives_at_thresholds(labels, logits[:, 1], [0.5])
             }
         eval_metrics = (metric_fn_ev, [labels, net_output,logits])
     else: # do the same
