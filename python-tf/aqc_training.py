@@ -422,7 +422,7 @@ def main(argv):
     def _train_data(params):  # hack ?
         dataset = load_data(
             batch_size=params['batch_size'], 
-            filenames=['deep_qc_data_shuffled_20190805_train.tfrecord'],
+            filenames=[FLAGS.training_data],
             training=True)
         images, labels = dataset.make_one_shot_iterator().get_next()
         return images, labels
@@ -430,7 +430,7 @@ def main(argv):
     def _eval_data(params):  # hack ?
         dataset = load_data(
             batch_size=params['batch_size'], 
-            filenames=['deep_qc_data_shuffled_20190805_val.tfrecord'],
+            filenames=[FLAGS.validation_data],
             training=False)
         images, labels = dataset.make_one_shot_iterator().get_next()
         return images, labels
