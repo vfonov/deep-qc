@@ -50,8 +50,8 @@ def serialize_dataset(images_jpeg, qc, subj, _id ):
         'img2_jpeg': tf.train.Feature( bytes_list = tf.train.BytesList(value=[ images_jpeg[1].numpy() ] )),
         'img3_jpeg': tf.train.Feature( bytes_list = tf.train.BytesList(value=[ images_jpeg[2].numpy() ] )),
         'qc':        tf.train.Feature( int64_list = tf.train.Int64List(value=[ qc.numpy() ] )),
-        'subj':      tf.train.Feature( int64_list = tf.train.Int64List(value=[ subj.numpy() ] )),
-        '_id':       tf.train.Feature( bytes_list = tf.train.BytesList(value=[ _id.numpy() ] ))
+        'subj':      tf.train.Feature( int64_list = tf.train.Int64List(value=[ subj.numpy() ] ))
+        #'_id':       tf.train.Feature( bytes_list = tf.train.BytesList(value=[ _id.numpy() ] ))
     }
     # Create a Features message using tf.train.Example.
     example_proto = tf.train.Example( features=tf.train.Features(feature=feature) )
@@ -128,8 +128,8 @@ if __name__ == '__main__':
     validation_subjects = tf.convert_to_tensor(all_subjects[n_subj*params.training//100+n_subj*params.testing//100:-1] ,dtype=np.int32)
 
     all_sets = { 'train':train_subjects, 
-                'val':validation_subjects, 
-                'test':testing_subjects }
+                 'val':validation_subjects, 
+                 'test':testing_subjects }
 
 
     #print("writing subject embedding to {}".format( out_subjects))
