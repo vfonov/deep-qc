@@ -18,7 +18,9 @@ import torch.nn as nn
 
 from torch import optim
 #from torch.autograd import Variable
-from tensorboardX import SummaryWriter
+#from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
+
 
 
 

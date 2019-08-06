@@ -14,8 +14,8 @@ import tensorflow as tf
 from tensorflow.python.platform import flags
 # TPU enabled models from  https://github.com/tensorflow/tpu/
 # add local copy of tpu module:
-from os.path import dirname
-sys.path.append(os.path.join(dirname(__file__),'tpu/models/'))
+#from os.path import dirname
+#sys.path.append(os.path.join(dirname(__file__),'tpu/models/'))
 
 #import official.mobilenet.mobilenet_model as mobilenet_v1
 from nets.resnet_v2 import resnet_v2_50
@@ -121,15 +121,15 @@ BATCH_NORM_DECAY = 0.996
 BATCH_NORM_EPSILON = 1e-3
 
 
-def create_inner_model(images, scope=None, is_training=True,reuse=False):
+def create_inner_model(images, scope=None, is_training=True, reuse=False):
     with tf.variable_scope(scope, reuse=reuse) as _scope:
-            with slim.arg_scope([slim.batch_norm, slim.dropout],
+        with slim.arg_scope([slim.batch_norm, slim.dropout],
                                 is_training=is_training):
-                #net, _ = mobilenet_v1.mobilenet_v1_base(images, scope=_scope)
-                net, _ = resnet_v2_50(images, scope=scope,is_training=is_training)
-                net = slim.conv2d(net, 1024, [1, 1])
-                net = slim.conv2d(net, 512,  [1, 1])
+            #net, _ = mobilenet_v1.mobilenet_v1_base(images, scope=_scope)
+            net, _ = resnet_v2_50(images, scope=scope, is_training=is_training, 
+                                          global_pool=False,reuse=reuse)
     return net
+
 
 def load_data(batch_size=None, filenames=None, training=True):
     """
@@ -203,17 +203,19 @@ def model_fn(features, labels, mode, params):
     with tf.variable_scope('addon') as scope:
         with slim.arg_scope([slim.batch_norm, slim.dropout],
                             is_training=training_active):
-
+            print(net1)
             # concatenate along feature dimension  - 
-            net = tf.concat([net1, net2, net3], -1)
-            net = slim.conv2d(net, 512, [1, 1])
-            net = slim.conv2d(net, 64, [1, 1])
-            net = slim.flatten(net) # 64*7*7=3136 features
-            net = slim.fully_connected(net, 1024)
-            net = slim.dropout(net,0.5)
-            net_output = slim.fully_connected(net, num_classes)
+            net = tf.concat( [net1, net2, net3], -1)
+            net = slim.conv2d(net, 2*512, [1, 1])
+            net = slim.conv2d(net, 32, [1, 1])
+            net = slim.conv2d(net, 32, [7,7], padding='VALID') # 7x7 -> 1x1 
+            net = slim.conv2d(net, 32, [1,1])
+            # flatten here?
+            net = slim.dropout(net, 0.5)
+            net = slim.conv2d(net, num_classes, [1,1])
+            net_output = slim.flatten(net) # -> N,2
             #
-            logits = tf.contrib.layers.softmax( net_output )
+            logits = slim.softmax( net_output )
 
     predictions = {
         'classes': tf.argmax(input=net_output, axis=1),
@@ -222,11 +224,12 @@ def model_fn(features, labels, mode, params):
 
     ############ DEBUG ##########
     summary_writer = tf.contrib.summary.create_file_writer(
-        os.path.join(params['model_dir'], 'debug'), name='debug')
+        os.path.join(params['model_dir'], 'debug' if training_active else "debug_e"), 
+            name='debug' if training_active else "debug_e")
 
     with summary_writer.as_default():
         #qc_pass = tf.greater(labels, 0)
-        label_1 = tf.equal(labels, 1)
+        #label_1 = tf.equal(labels, 1)
 
         # tf.summary.image("images1", images1)
         # tf.summary.image("images1_pass", tf.boolean_mask(images1, qc_pass))
@@ -235,8 +238,15 @@ def model_fn(features, labels, mode, params):
         # tf.summary.image("images2_fail", tf.boolean_mask(images2, qc_fail))
         # tf.summary.image("images3_pass", tf.boolean_mask(images3, qc_pass))
         # tf.summary.image("images3_fail", tf.boolean_mask(images3, qc_fail))
+        if training_active:
+            tf.summary.histogram( "labels",  labels )
+            tf.summary.histogram( "logits0", logits[:,0] )
+            tf.summary.histogram( "logits1", logits[:,1] )
+        else:
+            tf.summary.histogram( "Elabels",  labels )
+            tf.summary.histogram( "Elogits0", logits[:,0] )
+            tf.summary.histogram( "Elogits1", logits[:,1] )
 
-        tf.summary.histogram( "label_1", tf.boolean_mask(net_output, label_1))
         #tf.summary.histogram( "spatial_score_fail_1", tf.boolean_mask(net[:,:,:,1], qc_fail))
         
         # tf.summary.image("net1_pass", tf.boolean_mask(
@@ -321,13 +331,20 @@ def model_fn(features, labels, mode, params):
     eval_metrics = None
 
     if eval_active:
-
-        def metric_fn(labels, predictions):
+        def metric_fn_ev(labels, predictions):
             return {
                 'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=predictions, axis=1)),
                 #'auc': tf.metrics.auc(labels, predictions[:, 1])
             }
-        eval_metrics = (metric_fn, [labels, logits])
+        eval_metrics = (metric_fn_ev, [labels, net_output])
+    else: # do the same
+        def metric_fn_tr(labels, predictions):
+            return {
+                'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=predictions, axis=1)),
+                #'auc': tf.metrics.auc(labels, predictions[:, 1])
+            }
+        eval_metrics = (metric_fn_tr, [labels, net_output])
+
 
     return tf.contrib.tpu.TPUEstimatorSpec(
         mode=mode,

@@ -162,7 +162,7 @@ class ResNetQC(nn.Module):
 
     def forward(self, x):
         # split feats into batches
-        x = x.view(-1, 2 if self.use_ref else 1 ,224,224)
+        x = x.view(-1, 2 if self.use_ref else 1 , 224,224)
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
