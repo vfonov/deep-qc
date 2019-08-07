@@ -379,7 +379,8 @@ def model_fn(features, labels, mode, params):
                     # tf.summary.histogram( "labels",  labels )
                     # tf.summary.histogram( "logits0", logits[:,0] )
                     # tf.summary.histogram( "logits1", logits[:,1] )
-    if not training_active:
+    
+    if training_active:
         return tf.estimator.tpu.TPUEstimatorSpec(
             mode=mode,
             loss=loss,
