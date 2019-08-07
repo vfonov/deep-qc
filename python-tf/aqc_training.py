@@ -77,6 +77,9 @@ tf.flags.DEFINE_integer(
 tf.flags.DEFINE_integer(
     "n_samples", default=57848,
     help="Number of samples")
+tf.flags.DEFINE_integer(
+    "n_val_samples", default=1097,
+    help="Number of validation samples")
 flags.DEFINE_float(
     'learning_rate', 1e-3, 'Initial learning rate')
 tf.flags.DEFINE_integer(
@@ -183,11 +186,10 @@ def load_data(batch_size=None, filenames=None, training=True):
     
     if training:
         # TODO: determine optimal buffer size, input should be already pre-shuffled
-        dataset = dataset.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=6000))
-        # dataset = dataset.shuffle(buffer_size=2000)
-        # dataset = dataset.repeat()
+        #dataset = dataset.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=6000))
+        dataset = dataset.shuffle(buffer_size=2000).repeat()
 
-    dataset = dataset.batch(batch_size, drop_remainder=True)
+    dataset = dataset.batch(batch_size, drop_remainder=training)
     dataset = dataset.prefetch(buffer_size=AUTOTUNE)
     return dataset
 
@@ -232,19 +234,20 @@ def model_fn(features, labels, mode, params):
     with tf.variable_scope('addon',values=[net1]) as _scope:
         with slim.arg_scope([slim.batch_norm, slim.dropout],
                             is_training=training_active):
-            print(net1)
-            # concatenate along feature dimension  - 
+            # concatenate along feature dimension 
             net = tf.concat( [net1, net2, net3], -1)
-            #net = net1
+
+            # process all views together
             net = slim.conv2d(net, 2*512, [1, 1])
             net = slim.conv2d(net, 32, [1, 1])
             net = slim.conv2d(net, 32, [7,7], padding='VALID') # 7x7 -> 1x1 
             net = slim.conv2d(net, 32, [1,1])
+
             # flatten here?
             net = slim.dropout(net, 0.5)
             net = slim.conv2d(net, num_classes, [1,1])
             net_output = slim.flatten(net) # -> N,2
-            #
+            
             logits = slim.softmax( net_output )
 
     predictions = {
@@ -305,7 +308,7 @@ def model_fn(features, labels, mode, params):
                 RMSPROP_DECAY,
                 momentum=RMSPROP_MOMENTUM,
                 epsilon=RMSPROP_EPSILON)
-        elif FLAGS.optimizer == 'ADAM':
+        elif FLAGS.optimizer == 'ADAM': # Doesn't seem to work :(
             tf.logging.info('Using ADAM optimizer')
             optimizer = tf.train.AdamOptimizer(
                 learning_rate=learning_rate)
@@ -376,12 +379,12 @@ def model_fn(features, labels, mode, params):
                     # tf.summary.histogram( "labels",  labels )
                     # tf.summary.histogram( "logits0", logits[:,0] )
                     # tf.summary.histogram( "logits1", logits[:,1] )
-    if not FLAGS.multigpu:
+    if not training_active:
         return tf.estimator.tpu.TPUEstimatorSpec(
             mode=mode,
             loss=loss,
             train_op=train_op,
-            eval_metrics=eval_metrics)
+            eval_metrics=None) # eval_metrics
     else:
         return tf.estimator.EstimatorSpec(
             mode=mode,
@@ -389,6 +392,8 @@ def model_fn(features, labels, mode, params):
             train_op=train_op,
             eval_metric_ops={
                 'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=logits, axis=1)),
+                'precision': tf.metrics.precision(labels, tf.argmax(input=logits, axis=1)),
+                'recall': tf.metrics.recall(labels, tf.argmax(input=logits, axis=1)),
                 'auc': tf.metrics.auc(labels, logits[:, 1]),
                 'tnr': tf.metrics.true_negatives_at_thresholds(labels, logits[:, 1], [0.5])
             })
@@ -428,25 +433,26 @@ def main(argv):
             params={'batch_size':FLAGS.batch_size,'model_dir':FLAGS.model_dir})
     else:
         run_config = tf.estimator.tpu.RunConfig(
-            cluster=tpu_cluster_resolver,
-            model_dir=FLAGS.model_dir,
-            save_checkpoints_secs=FLAGS.save_checkpoints_secs,
-            save_summary_steps=FLAGS.save_summary_steps,
-            session_config=tf.ConfigProto(
-                allow_soft_placement=True,
-                log_device_placement=FLAGS.log_device_placement),
-            tpu_config=tf.estimator.tpu.TPUConfig(
-                iterations_per_loop=steps_per_cycle,
-                per_host_input_for_training=True),
+                cluster = tpu_cluster_resolver,
+                model_dir = FLAGS.model_dir,
+                save_checkpoints_secs = FLAGS.save_checkpoints_secs,
+                save_summary_steps = FLAGS.save_summary_steps,
+                session_config = tf.ConfigProto(
+                    allow_soft_placement = True,
+                    log_device_placement = FLAGS.log_device_placement),
+                tpu_config = tf.estimator.tpu.TPUConfig(
+                    iterations_per_loop = steps_per_cycle,
+                    per_host_input_for_training = True),
             )
 
         inception_classifier = tf.estimator.tpu.TPUEstimator(
-            model_fn=model_fn,
-            use_tpu=FLAGS.use_tpu,
-            config=run_config,
-            params={'model_dir': FLAGS.model_dir},
-            train_batch_size=FLAGS.batch_size,
-            eval_batch_size=FLAGS.eval_batch_size
+                model_fn =model_fn,
+                use_tpu = FLAGS.use_tpu,
+                config = run_config,
+                params = {'model_dir': FLAGS.model_dir},
+                eval_on_tpu = False,
+                train_batch_size=FLAGS.batch_size,
+                eval_batch_size=FLAGS.eval_batch_size
             ) # batch_axis=(batch_axis, 0)
 
     def _train_data(params):  # hack ?
