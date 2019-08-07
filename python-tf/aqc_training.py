@@ -339,9 +339,10 @@ def model_fn(features, labels, mode, params):
     if eval_active:
         def metric_fn_ev(_labels, _predictions, _logits):
             return {
-                'accuracy': tf.metrics.accuracy(_labels, tf.argmax(input=_predictions, axis=1)),
-                'auc': tf.metrics.auc(labels, _logits[:, 1]),
-                'tnr': tf.metrics.true_negatives_at_thresholds(_labels, _logits[:, 1], [0.5])
+                'accuracy': tf.metrics.accuracy(_labels,   tf.argmax(input=_predictions, axis=1)),
+                'precision': tf.metrics.precision(_labels, tf.argmax(input=_predictions, axis=1)),
+                #'auc': tf.metrics.auc(labels, _logits[:, 1]),
+                #'tnr': tf.metrics.true_negatives_at_thresholds(_labels, _logits[:, 1], [0.5])
             }
         eval_metrics = (metric_fn_ev, [labels, net_output,logits])
     else: # do the same
@@ -405,9 +406,13 @@ def main(argv):
     if FLAGS.use_tpu:
         assert FLAGS.model_dir.startswith("gs://"), ("'model_dir' should be a "
                                                      "GCS bucket path!")
+        assert FLAGS.validation_data.startswith("gs://"), ("'validation_data' should be a "
+                                                     "GCS bucket path!")
+        assert FLAGS.training_data.startswith("gs://"), ("'training_data' should be a "
+                                                     "GCS bucket path!")
+        _tpu = FLAGS.tpu if FLAGS.tpu is None else os.environ.get('TPU_NAME')
         # Resolve TPU cluster and runconfig for this.
-        tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(
-            FLAGS.tpu)
+        tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(_tpu)
     else:
         tpu_cluster_resolver = None
 
