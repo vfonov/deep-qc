@@ -389,7 +389,7 @@ def model_fn(features, labels, mode, params):
             mode=mode,
             loss=loss,
             train_op=train_op,
-            eval_metrics=eval_metrics)
+            eval_metric_ops=eval_metrics)
 
 
 def main(argv):
