@@ -405,33 +405,39 @@ def main(argv):
 
     if FLAGS.multigpu:
         _strategy = tf.distribute.MirroredStrategy()
+        run_config = tf.estimator.RunConfig(
+            save_checkpoints_secs=FLAGS.save_checkpoints_secs,
+            save_summary_steps=FLAGS.save_summary_steps,
+            train_distribute=_strategy
+            )
+        inception_classifier = tf.estimator.Estimator(
+            model_fn=model_fn,
+            config=run_config,
+            model_dir=FLAGS.model_dir,
+            train_batch_size=FLAGS.batch_size,
+            eval_batch_size=FLAGS.batch_size)
     else:
-        _strategy = None
+        run_config = tf.estimator.tpu.RunConfig(
+            cluster=tpu_cluster_resolver,
+            model_dir=FLAGS.model_dir,
+            save_checkpoints_secs=FLAGS.save_checkpoints_secs,
+            save_summary_steps=FLAGS.save_summary_steps,
+            session_config=tf.ConfigProto(
+                allow_soft_placement=True,
+                log_device_placement=FLAGS.log_device_placement),
+            tpu_config=tf.estimator.tpu.TPUConfig(
+                iterations_per_loop=steps_per_cycle,
+                per_host_input_for_training=True),
+            )
 
-
-    run_config = tf.contrib.tpu.RunConfig(
-        cluster=tpu_cluster_resolver,
-        model_dir=FLAGS.model_dir,
-        save_checkpoints_secs=FLAGS.save_checkpoints_secs,
-        save_summary_steps=FLAGS.save_summary_steps,
-        session_config=tf.ConfigProto(
-            allow_soft_placement=True,
-            log_device_placement=FLAGS.log_device_placement),
-        tpu_config=tf.contrib.tpu.TPUConfig(
-            iterations_per_loop=steps_per_cycle,
-            per_host_input_for_training=True),
-        train_distribute=_strategy, 
-        eval_distribute=_strategy
-        )
-
-    inception_classifier = tf.contrib.tpu.TPUEstimator(
-        model_fn=model_fn,
-        use_tpu=FLAGS.use_tpu,
-        config=run_config,
-        params={'model_dir': FLAGS.model_dir},
-        train_batch_size=FLAGS.batch_size,
-        eval_batch_size=FLAGS.batch_size,
-        batch_axis=(batch_axis, 0))
+        inception_classifier = tf.estimator.tpu.TPUEstimator(
+            model_fn=model_fn,
+            use_tpu=FLAGS.use_tpu,
+            config=run_config,
+            params={'model_dir': FLAGS.model_dir},
+            train_batch_size=FLAGS.batch_size,
+            eval_batch_size=FLAGS.batch_size
+            ) # batch_axis=(batch_axis, 0)
 
     def _train_data(params):  # hack ?
         dataset = load_data(
@@ -455,7 +461,6 @@ def main(argv):
         eval_hooks = [LoadEMAHook(FLAGS.model_dir)]
     else:
         eval_hooks = []
-
 
     for cycle in range(FLAGS.train_epochs * FLAGS.eval_per_epoch):
         #tf.logging.info('Starting training cycle %d.' % cycle)
