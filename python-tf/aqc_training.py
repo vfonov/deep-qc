@@ -166,12 +166,12 @@ def load_data(batch_size=None, filenames=None, training=True):
         return tf.io.parse_single_example(i, feature_description)
 
     def _decode_jpeg(a):
-        img1 = tf.cast(tf.image.decode_jpeg(
-            a['img1_jpeg'], channels=1), dtype=tf.float32)/127.5-1.0
-        img2 = tf.cast(tf.image.decode_jpeg(
-            a['img2_jpeg'], channels=1), dtype=tf.float32)/127.5-1.0
-        img3 = tf.cast(tf.image.decode_jpeg(
-            a['img3_jpeg'], channels=1), dtype=tf.float32)/127.5-1.0
+        img1 = tf.reshape(tf.cast(tf.image.decode_jpeg(
+            a['img1_jpeg'], channels=1), dtype=tf.float32)/127.5-1.0, [224,224,1] )
+        img2 = tf.reshape(tf.cast(tf.image.decode_jpeg(
+            a['img2_jpeg'], channels=1), dtype=tf.float32)/127.5-1.0, [224,224,1] )
+        img3 = tf.reshape(tf.cast(tf.image.decode_jpeg(
+            a['img3_jpeg'], channels=1), dtype=tf.float32)/127.5-1.0, [224,224,1] )
         # , 'subj':a['subj']
         return {'View1': img1, 'View2': img2, 'View3': img3}, {'qc': a['qc']}
 
