@@ -420,7 +420,7 @@ def main(argv):
             model_fn=model_fn,
             config=run_config,
             model_dir=FLAGS.model_dir,
-            params={'batch_size':FLAGS.batch_size})
+            params={'batch_size':FLAGS.batch_size,'model_dir':FLAGS.model_dir})
     else:
         run_config = tf.estimator.tpu.RunConfig(
             cluster=tpu_cluster_resolver,
