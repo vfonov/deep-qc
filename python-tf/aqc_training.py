@@ -204,7 +204,7 @@ class LoadEMAHook(tf.train.SessionRunHook):
     self._load_ema(sess)
 
 
-def model_fn(features, labels, mode, params={'batch_size':FLAGS.batch_size}):
+def model_fn(features, labels, mode, params):
     """Mobilenet v1 model using Estimator API."""
     num_classes = 2
     batch_size = params['batch_size']
@@ -378,12 +378,18 @@ def model_fn(features, labels, mode, params={'batch_size':FLAGS.batch_size}):
                 tf.summary.histogram( "Elabels",  labels )
                 # tf.summary.histogram( "Elogits0", logits[:,0] )
                 # tf.summary.histogram( "Elogits1", logits[:,1] )
-
-    return tf.contrib.tpu.TPUEstimatorSpec(
-        mode=mode,
-        loss=loss,
-        train_op=train_op,
-        eval_metrics=eval_metrics)
+    if not FLAGS.multigpu:
+        return tf.estimator.tpu.TPUEstimatorSpec(
+            mode=mode,
+            loss=loss,
+            train_op=train_op,
+            eval_metrics=eval_metrics)
+    else:
+        return tf.estimator.EstimatorSpec(
+            mode=mode,
+            loss=loss,
+            train_op=train_op,
+            eval_metrics=eval_metrics)
 
 
 def main(argv):
@@ -414,8 +420,7 @@ def main(argv):
             model_fn=model_fn,
             config=run_config,
             model_dir=FLAGS.model_dir,
-            train_batch_size=FLAGS.batch_size,
-            eval_batch_size=FLAGS.batch_size)
+            params={'batch_size':FLAGS.batch_size})
     else:
         run_config = tf.estimator.tpu.RunConfig(
             cluster=tpu_cluster_resolver,
