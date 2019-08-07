@@ -110,6 +110,12 @@ tf.flags.DEFINE_bool(
     "log_device_placement", default=False,
     help="log_device_placement")
 
+#MULTI-GPU specific paramters
+tf.flags.DEFINE_bool(
+    "multigpu", default=False,
+    help="Use all available GPUs")
+
+
 FLAGS = tf.flags.FLAGS
 
 # Constants dictating the learning rate schedule.
@@ -397,6 +403,11 @@ def main(argv):
 
     steps_per_cycle = FLAGS.n_samples//FLAGS.batch_size//FLAGS.eval_per_epoch
 
+    if FLAGS.multigpu:
+        _strategy = tf.distribute.MirroredStrategy()
+    else:
+        _strategy = None
+
 
     run_config = tf.contrib.tpu.RunConfig(
         cluster=tpu_cluster_resolver,
@@ -408,7 +419,10 @@ def main(argv):
             log_device_placement=FLAGS.log_device_placement),
         tpu_config=tf.contrib.tpu.TPUConfig(
             iterations_per_loop=steps_per_cycle,
-            per_host_input_for_training=True))
+            per_host_input_for_training=True),
+        train_distribute=_strategy, 
+        eval_distribute=_strategy
+        )
 
     inception_classifier = tf.contrib.tpu.TPUEstimator(
         model_fn=model_fn,
