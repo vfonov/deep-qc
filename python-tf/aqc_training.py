@@ -389,7 +389,11 @@ def model_fn(features, labels, mode, params):
             mode=mode,
             loss=loss,
             train_op=train_op,
-            eval_metric_ops=eval_metrics)
+            eval_metric_ops={
+                'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=predictions, axis=1)),
+                'auc': tf.metrics.auc(labels, logits[:, 1]),
+                'tnr': tf.metrics.true_negatives_at_thresholds(labels, logits[:, 1], [0.5])
+            })
 
 
 def main(argv):
