@@ -68,7 +68,7 @@ tf.flags.DEFINE_integer(
     "train_epochs", default=100,
     help="Total number of training epochs")
 tf.flags.DEFINE_integer(
-    "eval_per_epoch", default=3,
+    "eval_per_epoch", default=1,
     help="Total number of training steps per evaluation")
 # tf.flags.DEFINE_integer(
 #     "eval_steps", default=4,
@@ -210,18 +210,16 @@ class LoadEMAHook(tf.train.SessionRunHook):
 def model_fn(features, labels, mode, params):
     """Mobilenet v1 model using Estimator API."""
     num_classes = 2
-    batch_size = params['batch_size']
+    #batch_size = params['batch_size']
 
     training_active = (mode == tf.estimator.ModeKeys.TRAIN)
     eval_active = (mode == tf.estimator.ModeKeys.EVAL)
     predict_active = (mode == tf.estimator.ModeKeys.PREDICT)
 
-    images = features
-
-    images1 = tf.reshape(images['View1'], [batch_size, 224, 224, 1])
-    images2 = tf.reshape(images['View2'], [batch_size, 224, 224, 1])
-    images3 = tf.reshape(images['View3'], [batch_size, 224, 224, 1])
-    labels  = tf.reshape(labels['qc'],    [batch_size])
+    images1 = features['View1']
+    images2 = features['View2']
+    images3 = features['View3']
+    labels  = labels['qc']
     #ids     = features['id']
 
     # if eval_active:
@@ -318,12 +316,11 @@ def model_fn(features, labels, mode, params):
             optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
 
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        
         with tf.control_dependencies(update_ops):
             gradients = optimizer.compute_gradients(loss)
-            # TODO: clip gradients
-            gradients_norm = tf.linalg.global_norm(gradients,"gradients_norm")
-            #ngradients, gradients_norm = tf.clip_by_global_norm(gradients, 2.0)
+            if not FLAGS.use_tpu:
+                    # TODO: clip gradients
+                    gradients_norm = tf.linalg.global_norm(gradients,"gradients_norm")
             train_op = optimizer.apply_gradients(gradients, global_step=global_step)
 
         if FLAGS.moving_average:
@@ -339,8 +336,9 @@ def model_fn(features, labels, mode, params):
     if eval_active:
         def metric_fn_ev(_labels, _predictions, _logits):
             return {
-                'accuracy': tf.metrics.accuracy(_labels,   tf.argmax(input=_predictions, axis=1)),
+                'accuracy': tf.metrics.accuracy(_labels, tf.argmax(input=_predictions, axis=1)),
                 'precision': tf.metrics.precision(_labels, tf.argmax(input=_predictions, axis=1)),
+                'recall': tf.metrics.recall(_labels, tf.argmax(input=_predictions, axis=1)),
                 #'auc': tf.metrics.auc(labels, _logits[:, 1]),
                 #'tnr': tf.metrics.true_negatives_at_thresholds(_labels, _logits[:, 1], [0.5])
             }
@@ -375,13 +373,9 @@ def model_fn(features, labels, mode, params):
             if training_active:
                 with tf.control_dependencies([gradients_norm, labels]): # print_ops
                     tf.summary.scalar("gradient norm",gradients_norm)
-                    tf.summary.histogram( "labels",  labels )
+                    # tf.summary.histogram( "labels",  labels )
                     # tf.summary.histogram( "logits0", logits[:,0] )
                     # tf.summary.histogram( "logits1", logits[:,1] )
-            else:
-                tf.summary.histogram( "Elabels",  labels )
-                # tf.summary.histogram( "Elogits0", logits[:,0] )
-                # tf.summary.histogram( "Elogits1", logits[:,1] )
     if not FLAGS.multigpu:
         return tf.estimator.tpu.TPUEstimatorSpec(
             mode=mode,
@@ -398,7 +392,6 @@ def model_fn(features, labels, mode, params):
                 'auc': tf.metrics.auc(labels, logits[:, 1]),
                 'tnr': tf.metrics.true_negatives_at_thresholds(labels, logits[:, 1], [0.5])
             })
-
 
 def main(argv):
     del argv  # Unused
@@ -488,7 +481,7 @@ def main(argv):
             steps=2 # HACK  should be validation size/validation batch size
             )
         tf.logging.info('Evaluation results: {}'.format(eval_results))
-
+        # TODO: implement early stopping
 
 if __name__ == '__main__':
     # main()
