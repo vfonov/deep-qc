@@ -249,9 +249,10 @@ def model_fn(features, labels, mode, params):
             net_output = slim.flatten(net) # -> N,2
             
             logits = slim.softmax( net_output )
+            class_out = tf.argmax(input=net_output, axis=1),
 
     predictions = {
-        'classes': tf.argmax(input=net_output, axis=1),
+        'classes': class_out,
         'probabilities': logits
     }
 
@@ -339,20 +340,17 @@ def model_fn(features, labels, mode, params):
     if eval_active:
         def metric_fn_ev(_labels, _predictions, _logits):
             return {
-                'accuracy': tf.metrics.accuracy(_labels, tf.argmax(input=_predictions, axis=1)),
-                'precision': tf.metrics.precision(_labels, tf.argmax(input=_predictions, axis=1)),
-                'recall': tf.metrics.recall(_labels, tf.argmax(input=_predictions, axis=1)),
-                #'auc': tf.metrics.auc(labels, _logits[:, 1]),
-                #'tnr': tf.metrics.true_negatives_at_thresholds(_labels, _logits[:, 1], [0.5])
+                'accuracy': tf.metrics.accuracy(_labels, _predictions),
+                'precision': tf.metrics.precision(_labels, _predictions),
+                'recall': tf.metrics.recall(_labels, _predictions ),
             }
-        eval_metrics = (metric_fn_ev, [labels, net_output,logits])
+        eval_metrics = (metric_fn_ev, [labels, class_out, logits])
     else: # do the same
         def metric_fn_tr(_labels, _predictions):
             return {
-                'accuracy': tf.metrics.accuracy(_labels, tf.argmax(input=_predictions, axis=1)),
-                #'auc': tf.metrics.auc(labels, predictions[:, 1])
+                'accuracy': tf.metrics.accuracy(_labels, _predictions),
             }
-        eval_metrics = (metric_fn_tr, [labels, net_output])
+        eval_metrics = (metric_fn_tr, [labels, class_out])
 
     ############ DEBUG ##########
     #print_op = tf.print(ids)
@@ -392,11 +390,10 @@ def model_fn(features, labels, mode, params):
             loss=loss,
             train_op=train_op,
             eval_metric_ops={
-                'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=logits, axis=1)),
-                'precision': tf.metrics.precision(labels, tf.argmax(input=logits, axis=1)),
-                'recall': tf.metrics.recall(labels, tf.argmax(input=logits, axis=1)),
-                'auc': tf.metrics.auc(labels, logits[:, 1]),
-                'tnr': tf.metrics.true_negatives_at_thresholds(labels, logits[:, 1], [0.5])
+                'accuracy': tf.metrics.accuracy(labels, class_out),
+                'precision': tf.metrics.precision(labels, class_out),
+                'recall': tf.metrics.recall(labels, class_out),
+                'auc': tf.metrics.auc(labels, logits[:, 1])
             })
 
 def main(argv):
