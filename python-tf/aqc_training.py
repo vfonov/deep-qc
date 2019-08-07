@@ -204,7 +204,7 @@ class LoadEMAHook(tf.train.SessionRunHook):
     self._load_ema(sess)
 
 
-def model_fn(features, labels, mode, params):
+def model_fn(features, labels, mode, params={'batch_size':FLAGS.batch_size}):
     """Mobilenet v1 model using Estimator API."""
     num_classes = 2
     batch_size = params['batch_size']
@@ -438,18 +438,18 @@ def main(argv):
             batch_size=params['batch_size'], 
             filenames=[FLAGS.training_data],
             training=True)
-        images, labels = dataset.make_one_shot_iterator().get_next()
-        #return dataset
-        return images,labels
+        #images, labels = dataset.make_one_shot_iterator().get_next()
+        return dataset
+        #return images,labels
 
     def _eval_data(params):  # hack ?
         dataset = load_data(
             batch_size=params['batch_size'], 
             filenames=[FLAGS.validation_data],
             training=False)
-        images, labels = dataset.make_one_shot_iterator().get_next()
-        #return dataset
-        return images,labels
+        #images, labels = dataset.make_one_shot_iterator().get_next()
+        return dataset
+        #return images,labels
 
     if FLAGS.moving_average:
         eval_hooks = [LoadEMAHook(FLAGS.model_dir)]
