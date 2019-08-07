@@ -58,6 +58,9 @@ tf.flags.DEFINE_string(
 tf.flags.DEFINE_integer(
     "batch_size", default=12,
     help="This is the global batch size and not the per-shard batch.")
+tf.flags.DEFINE_integer(
+    "eval_batch_size", default=8,
+    help="This is the validation batch size.")
 flags.DEFINE_integer(
     'num_cores', 1,
     'Number of shards (workers).')
@@ -445,7 +448,7 @@ def main(argv):
             config=run_config,
             params={'model_dir': FLAGS.model_dir},
             train_batch_size=FLAGS.batch_size,
-            eval_batch_size=FLAGS.batch_size
+            eval_batch_size=FLAGS.eval_batch_size
             ) # batch_axis=(batch_axis, 0)
 
     def _train_data(params):  # hack ?
@@ -453,18 +456,14 @@ def main(argv):
             batch_size=params['batch_size'], 
             filenames=[FLAGS.training_data],
             training=True)
-        #images, labels = dataset.make_one_shot_iterator().get_next()
         return dataset
-        #return images,labels
 
     def _eval_data(params):  # hack ?
         dataset = load_data(
             batch_size=params['batch_size'], 
             filenames=[FLAGS.validation_data],
             training=False)
-        #images, labels = dataset.make_one_shot_iterator().get_next()
         return dataset
-        #return images,labels
 
     if FLAGS.moving_average:
         eval_hooks = [LoadEMAHook(FLAGS.model_dir)]
@@ -480,8 +479,9 @@ def main(argv):
         #tf.logging.info('Starting evaluation cycle %d .' % cycle)
         eval_results = inception_classifier.evaluate(
             input_fn=_eval_data,
-            hooks=eval_hooks)
-
+            hooks=eval_hooks,
+            steps=2 # HACK  should be validation size/validation batch size
+            )
         tf.logging.info('Evaluation results: {}'.format(eval_results))
 
 
