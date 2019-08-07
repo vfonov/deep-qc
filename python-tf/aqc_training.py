@@ -334,17 +334,17 @@ def model_fn(features, labels, mode, params):
     eval_metrics = None
 
     if eval_active:
-        def metric_fn_ev(labels, predictions, logits):
+        def metric_fn_ev(_labels, _predictions, _logits):
             return {
-                'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=predictions, axis=1)),
-                'auc': tf.metrics.auc(labels, logits[:, 1]),
-                'tnr': tf.metrics.true_negatives_at_thresholds(labels, logits[:, 1], [0.5])
+                'accuracy': tf.metrics.accuracy(_labels, tf.argmax(input=_predictions, axis=1)),
+                'auc': tf.metrics.auc(labels, _logits[:, 1]),
+                'tnr': tf.metrics.true_negatives_at_thresholds(_labels, _logits[:, 1], [0.5])
             }
         eval_metrics = (metric_fn_ev, [labels, net_output,logits])
     else: # do the same
-        def metric_fn_tr(labels, predictions):
+        def metric_fn_tr(_labels, _predictions):
             return {
-                'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=predictions, axis=1)),
+                'accuracy': tf.metrics.accuracy(_labels, tf.argmax(input=_predictions, axis=1)),
                 #'auc': tf.metrics.auc(labels, predictions[:, 1])
             }
         eval_metrics = (metric_fn_tr, [labels, net_output])
@@ -390,7 +390,7 @@ def model_fn(features, labels, mode, params):
             loss=loss,
             train_op=train_op,
             eval_metric_ops={
-                'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=predictions, axis=1)),
+                'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=logits, axis=1)),
                 'auc': tf.metrics.auc(labels, logits[:, 1]),
                 'tnr': tf.metrics.true_negatives_at_thresholds(labels, logits[:, 1], [0.5])
             })
