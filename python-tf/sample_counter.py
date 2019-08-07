@@ -1,7 +1,7 @@
 import tensorflow as tf
 import sys
-tf.compat.v1.enable_eager_execution()
 tf.logging.set_verbosity('WARN')
+tf.compat.v1.enable_eager_execution()
 
 files=sys.argv
 
