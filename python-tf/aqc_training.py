@@ -248,7 +248,7 @@ def model_fn(features, labels, mode, params):
             net = slim.conv2d(net, num_classes, [1,1])
             net_output = slim.flatten(net) # -> N,2
             
-            logits = slim.softmax( net_output )
+            logits    = slim.softmax( net_output )
             class_out = tf.argmax(input=net_output, axis=1),
 
     predictions = {
@@ -482,7 +482,7 @@ def main(argv):
         eval_results = inception_classifier.evaluate(
             input_fn=_eval_data,
             hooks=eval_hooks,
-            steps=2 # HACK  should be validation size/validation batch size
+            steps=FLAGS.n_val_samples/FLAGS.eval_batch_size # HACK  should be validation size/validation batch size
             )
         tf.logging.info('Evaluation results: {}'.format(eval_results))
         # TODO: implement early stopping
