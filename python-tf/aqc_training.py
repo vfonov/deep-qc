@@ -390,7 +390,6 @@ def model_fn(features, labels, mode, params):
             loss=loss,
             train_op=train_op,
             eval_metric_ops={
-                'loss': loss,
                 'accuracy': tf.metrics.accuracy(labels, tf.argmax(input=net_output, axis=1)),
                 'precision': tf.metrics.precision(labels, tf.argmax(input=net_output, axis=1)),
                 'recall': tf.metrics.recall(labels, tf.argmax(input=net_output, axis=1)),
