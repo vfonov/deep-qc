@@ -193,25 +193,25 @@ def main(argv):
     #batch_axis = 0
 
     aqc_estimator = create_AQC_estimator(FLAGS, 
-        tpu_cluster_resolver=tpu_cluster_resolver, warm_start_from=FLAGS.model_dir if FLAGS.testing else None)
+        tpu_cluster_resolver = tpu_cluster_resolver, warm_start_from=FLAGS.model_dir if FLAGS.testing else None)
 
     def _train_data(params): 
         dataset = load_data(
-            batch_size=params['batch_size'], 
-            filenames=[FLAGS.training_data],
+            batch_size = params.get('batch_size',FLAGS.batch_size), 
+            filenames = [FLAGS.training_data],
             training=True)
         return dataset
 
     def _eval_data(params):  
         dataset = load_data(
-            batch_size=params['batch_size'], 
-            filenames=[FLAGS.validation_data],
+            batch_size = params.get('batch_size',FLAGS.eval_batch_size), 
+            filenames = [FLAGS.validation_data],
             training=False)
         return dataset
 
     def _testing_data(params):  
         dataset = load_data(
-            batch_size=params['batch_size'], 
+            batch_size = params.get('batch_size',FLAGS.eval_batch_size), 
             filenames=[ FLAGS.testing_data ],
             training=False )
         return dataset
