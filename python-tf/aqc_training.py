@@ -190,8 +190,8 @@ def main(argv):
     else:
         tpu_cluster_resolver = None
 
-    batch_size_per_shard = FLAGS.batch_size // FLAGS.num_cores
-    batch_axis = 0
+    #batch_size_per_shard = FLAGS.batch_size // FLAGS.num_cores
+    #batch_axis = 0
 
     aqc_estimator = create_AQC_estimator(FLAGS, tpu_cluster_resolver=tpu_cluster_resolver)
 
