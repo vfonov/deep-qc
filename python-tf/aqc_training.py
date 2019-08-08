@@ -193,7 +193,7 @@ def main(argv):
     #batch_size_per_shard = FLAGS.batch_size // FLAGS.num_cores
     #batch_axis = 0
 
-    aqc_estimator = create_AQC_estimator(FLAGS, tpu_cluster_resolver=tpu_cluster_resolver)
+    aqc_estimator = create_AQC_estimator(FLAGS, tpu_cluster_resolver=tpu_cluster_resolver, warm_start_from=FLAGS.model_dir)
 
     def _train_data(params): 
         dataset = load_data(
@@ -238,7 +238,7 @@ def main(argv):
                 )
             tf.logging.info('Evaluation results: {}'.format(eval_results))
     else:
-        aqc_estimator.warm_start_from(FLAGS.model_dir)
+       
         # run evaluation on testing dataset
         testing_results = aqc_estimator.evaluate(
             input_fn = _testing_data,

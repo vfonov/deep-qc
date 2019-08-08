@@ -193,7 +193,7 @@ def model_fn(features, labels, mode, params):
 
 
 
-def create_AQC_estimator(flags, tpu_cluster_resolver=None):
+def create_AQC_estimator(flags, tpu_cluster_resolver=None,warm_start_from=None):
     session_config = tf.ConfigProto()                                               
     optimizer_options = session_config.graph_options.optimizer_options
 
@@ -221,7 +221,8 @@ def create_AQC_estimator(flags, tpu_cluster_resolver=None):
             model_fn = model_fn,
             config = run_config,
             model_dir = flags.model_dir,
-            params = _flags2params(flags))
+            params = _flags2params(flags),
+            warm_start_from=warm_start_from)
     else:
         session_config = tf.ConfigProto(
             allow_soft_placement = True,
@@ -248,7 +249,8 @@ def create_AQC_estimator(flags, tpu_cluster_resolver=None):
             params = _flags2params(flags),
             eval_on_tpu = False,
             train_batch_size = flags.batch_size,
-            eval_batch_size = flags.eval_batch_size
+            eval_batch_size = flags.eval_batch_size,
+            warm_start_from = warm_start_from
         ) # batch_axis=(batch_axis, 0)    
     
     return aqc_classifier
