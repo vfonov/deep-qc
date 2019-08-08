@@ -105,20 +105,19 @@ tf.flags.DEFINE_integer(
 tf.flags.DEFINE_bool(
     "log_device_placement", default=False,
     help="log_device_placement")
-
-#MULTI-GPU specific paramters
 tf.flags.DEFINE_bool(
     "multigpu", default=False,
     help="Use all available GPUs")
-
 tf.flags.DEFINE_bool(
     "xla",default=False,
     help="Use xla compiler")
-
 tf.flags.DEFINE_bool(
     "testing",default=False,
     help="Run in testing mode")
-    
+tf.flags.DEFINE_string(
+    "flavor", default="r50",
+    help="inner net flavor: r50,r152,r200,m")
+
 
 FLAGS = tf.flags.FLAGS
 

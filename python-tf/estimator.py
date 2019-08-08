@@ -45,7 +45,9 @@ def _flags2params(flags):
         'n_samples':flags.n_samples,
         'learning_rate_decay_epochs':flags.learning_rate_decay_epochs,
         'learning_rate_decay':flags.learning_rate_decay,
-        'optimizer':flags.optimizer
+        'optimizer':flags.optimizer,
+        'multigpu':flags.multigpu,
+        'flavor':flags.flavor
     }
     
 
@@ -58,7 +60,8 @@ def model_fn(features, labels, mode, params):
     predict_active = (mode == tf.estimator.ModeKeys.PREDICT)
     labels = labels['qc']
 
-    net_output, logits, class_out = create_qc_model(features, training_active=training_active,flavor=params.get('flavor','r50'),num_classes=num_classes)
+    net_output, logits, class_out = create_qc_model(features, 
+        training_active=training_active,flavor=params.get('flavor','r50'),num_classes=num_classes)
 
     predictions = {
         'classes': class_out,
