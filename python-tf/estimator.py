@@ -95,7 +95,7 @@ def model_fn(features, labels, mode, params):
             learning_rate=initial_learning_rate,
             global_step=global_step,
             decay_steps=params["learning_rate_decay_epochs"] * batches_per_epoch,
-            decay_rate=params["learning_rate_decay,"]
+            decay_rate=params["learning_rate_decay"],
             staircase=True)
 
         # Set a minimum boundary for the learning rate.
@@ -199,10 +199,10 @@ def create_AQC_estimator(flags, tpu_cluster_resolver=None):
     optimizer_options = session_config.graph_options.optimizer_options
 
     if flags.xla: 
-        optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1    
-
+        optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+    
     steps_per_cycle = flags.n_samples//flags.batch_size//flags.eval_per_epoch
-
+    
     if flags.multigpu:
         _strategy = tf.distribute.MirroredStrategy()
         session_config = tf.ConfigProto(
