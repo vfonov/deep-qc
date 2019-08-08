@@ -124,7 +124,7 @@ def model_fn(features, labels, mode, params):
             optimizer = tf.train.AdamOptimizer(
                 learning_rate=learning_rate)
         else:
-            tf.logging.fatal('Unknown optimizer:', params["optimizer)"]
+            tf.logging.fatal('Unknown optimizer:', params["optimizer"])
 
         if params["use_tpu"]:
             optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
