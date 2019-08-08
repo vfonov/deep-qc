@@ -3,7 +3,7 @@ import tensorflow as tf
 # command line configuration
 from tensorflow.python.platform import flags
 from model import create_qc_model
-
+import os
 
 # Constants dictating the learning rate schedule.
 RMSPROP_DECAY = 0.9                # Decay term for RMSProp.
