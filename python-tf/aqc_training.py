@@ -68,7 +68,7 @@ tf.flags.DEFINE_integer(
     "n_val_samples", default=1097,
     help="Number of validation samples")
 tf.flags.DEFINE_integer(
-    "n_testing_samples", default=4246,
+    "n_test_samples", default=4246,
     help="Number of testing samples")
 flags.DEFINE_float(
     'learning_rate', 1e-3, 'Initial learning rate')
