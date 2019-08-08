@@ -121,6 +121,9 @@ tf.flags.DEFINE_bool(
     "multigpu", default=False,
     help="Use all available GPUs")
 
+tf.flags.DEFINE_bool(
+    "xla",default=False,
+    help="Use xla compiler")
 
 FLAGS = tf.flags.FLAGS
 
@@ -415,14 +418,27 @@ def main(argv):
     batch_size_per_shard = FLAGS.batch_size // FLAGS.num_cores
     batch_axis = 0
 
+    session_config = tf.ConfigProto()                                               
+    optimizer_options = session_config.graph_options.optimizer_options
+
+    if FLAGS.xla:                                                     
+        optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1    
+
     steps_per_cycle = FLAGS.n_samples//FLAGS.batch_size//FLAGS.eval_per_epoch
 
     if FLAGS.multigpu:
         _strategy = tf.distribute.MirroredStrategy()
+        session_config = tf.ConfigProto(
+            allow_soft_placement = True,
+            log_device_placement = FLAGS.log_device_placement)
+        if FLAGS.xla:
+            session_config.graph_options.optimizer_options.global_jit_level=tf.OptimizerOptions.ON_1
+
         run_config = tf.estimator.RunConfig(
             save_checkpoints_secs=FLAGS.save_checkpoints_secs,
             save_summary_steps=FLAGS.save_summary_steps,
-            train_distribute=_strategy
+            train_distribute=_strategy,
+            session_config=session_config
             )
         inception_classifier = tf.estimator.Estimator(
             model_fn=model_fn,
@@ -430,28 +446,33 @@ def main(argv):
             model_dir=FLAGS.model_dir,
             params={'batch_size':FLAGS.batch_size,'model_dir':FLAGS.model_dir})
     else:
+        session_config = tf.ConfigProto(
+            allow_soft_placement = True,
+            log_device_placement = FLAGS.log_device_placement)
+            
+        if FLAGS.xla:
+            session_config.graph_options.optimizer_options.global_jit_level=tf.OptimizerOptions.ON_1
+
         run_config = tf.estimator.tpu.RunConfig(
-                cluster = tpu_cluster_resolver,
-                model_dir = FLAGS.model_dir,
-                save_checkpoints_secs = FLAGS.save_checkpoints_secs,
-                save_summary_steps = FLAGS.save_summary_steps,
-                session_config = tf.ConfigProto(
-                    allow_soft_placement = True,
-                    log_device_placement = FLAGS.log_device_placement),
-                tpu_config = tf.estimator.tpu.TPUConfig(
-                    iterations_per_loop = steps_per_cycle,
-                    per_host_input_for_training = True),
-            )
+            cluster = tpu_cluster_resolver,
+            model_dir = FLAGS.model_dir,
+            save_checkpoints_secs = FLAGS.save_checkpoints_secs,
+            save_summary_steps = FLAGS.save_summary_steps,
+            session_config = session_config,
+            tpu_config = tf.estimator.tpu.TPUConfig(
+                iterations_per_loop = steps_per_cycle,
+                per_host_input_for_training = True),
+        )
 
         inception_classifier = tf.estimator.tpu.TPUEstimator(
-                model_fn =model_fn,
-                use_tpu = FLAGS.use_tpu,
-                config = run_config,
-                params = {'model_dir': FLAGS.model_dir},
-                eval_on_tpu = False,
-                train_batch_size=FLAGS.batch_size,
-                eval_batch_size=FLAGS.eval_batch_size
-            ) # batch_axis=(batch_axis, 0)
+            model_fn =model_fn,
+            use_tpu = FLAGS.use_tpu,
+            config = run_config,
+            params = {'model_dir': FLAGS.model_dir},
+            eval_on_tpu = False,
+            train_batch_size=FLAGS.batch_size,
+            eval_batch_size=FLAGS.eval_batch_size
+        ) # batch_axis=(batch_axis, 0)
 
     def _train_data(params):  # hack ?
         dataset = load_data(
