@@ -37,12 +37,11 @@ class LoadEMAHook(tf.train.SessionRunHook):
 def _flags2params(flags):
     # HACK
     return {
-        'batch_size':flags.batch_size,
+        # 'batch_size':flags.batch_size,  # to be set by estimator
         'model_dir':flags.model_dir,
         'moving_average':flags.moving_average,
         'use_tpu':flags.use_tpu,
         'learning_rate':flags.learning_rate,
-        'batch_size':flags.batch_size,
         'n_samples':flags.n_samples,
         'learning_rate_decay_epochs':flags.learning_rate_decay_epochs,
         'learning_rate_decay':flags.learning_rate_decay,
