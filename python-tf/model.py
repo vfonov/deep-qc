@@ -5,70 +5,70 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-#import os
 import tensorflow as tf
-from tensorflow.keras import layers
-import numpy as np
+
+from nets.resnet_v2 import resnet_v2_50, resnet_v2_152, resnet_v2_200
+from nets.mobilenet_v1 import mobilenet_v1_base
+
+# slim tensorflow library
+slim = tf.contrib.slim
+
+def _create_inner_model(images, scope=None, is_training=True, reuse=False,flavor='r50'):
+    with tf.variable_scope(scope, 'resnet', [images], reuse=reuse ) as _scope:
+        with slim.arg_scope([slim.batch_norm, slim.dropout],
+                                is_training=is_training):
+            
+            if flavor=='r50':
+                net, _ = resnet_v2_50(images, scope=_scope, is_training=is_training, 
+                                          global_pool=False,reuse=reuse)
+            elif flavor=='r152':
+                net, _ = resnet_v2_152(images, scope=_scope, is_training=is_training, 
+                                          global_pool=False,reuse=reuse)
+            elif flavor=='r200':
+                net, _ = resnet_v2_200(images, scope=_scope, is_training=is_training, 
+                                          global_pool=False,reuse=reuse)
+            elif flavor=='m':
+                net, _ = mobilenet_v1_base(images, scope=_scope)
+            else:
+                # Unknown model
+                tf.logging.info('Requested unknown model, giving resnet_v2_50')
+                net, _ = resnet_v2_50(images, scope=_scope, is_training=is_training, 
+                                          global_pool=False,reuse=reuse)
+    return net
 
 
-def augment_inner_model(inner_model, conv, x, out_filters=32, dropout=True):
-    # pass through inner model to extract features
-    x = inner_model(x)
-    x = conv(x)
-    # ResNetX style learning of high order features
-    # TODO: replace with SeparableConv2D ?
-    # x = layers.Conv2D(out_filters, (1,1), activation='relu')(x)
-    x = layers.BatchNormalization()(x)
 
-    x = layers.DepthwiseConv2D( (3,3), activation='relu', padding='valid')(x)
-    x = layers.BatchNormalization()(x)
+def create_qc_model(features, flavor='r50', scope='auto_qc', training_active=True,num_classes=2):
+    """Create autoQC model"""
 
-    x = layers.Conv2D(out_filters, (1,1), activation='relu')(x)
-    x = layers.BatchNormalization()(x)
+    images1 = features['View1']
+    images2 = features['View2']
+    images3 = features['View3']
 
-    if dropout:
-        x = layers.SpatialDropout2D(0.5)(x)
+    with tf.variable_scope(scope, 'auto_qc', 
+                        [images1,images2,images3]) as _scope:
+        net1 = _create_inner_model(images1, scope='InnerModel', is_training=training_active,flavor=flavor)
+        net2 = _create_inner_model(images2, scope='InnerModel', is_training=training_active, reuse=True,flavor=flavor)
+        net3 = _create_inner_model(images3, scope='InnerModel', is_training=training_active, reuse=True,flavor=flavor)
 
-    return x
+        with slim.arg_scope([slim.batch_norm, slim.dropout],
+                            is_training=training_active):
+            # concatenate along feature dimension 
+            net = tf.concat( [net1, net2, net3], -1)
 
-def create_qc_model(input_shape=(224, 224, 1), dropout=True, filters=32):
+            # process all views together
+            net = slim.conv2d(net, 2*512, [1, 1])
+            net = slim.conv2d(net, 32, [1, 1])
+            net = slim.conv2d(net, 32, [7,7], padding='VALID') # 7x7 -> 1x1 
+            net = slim.conv2d(net, 32, [1,1])
 
-    # use existing create Keras model as base, reduce number of channels right away
-    inner_model = tf.keras.applications.MobileNetV2(input_shape=input_shape, include_top=False, weights=None)
-    conv = layers.Conv2D(filters, (1,1), activation='relu')
-    #inner_model = tf.keras.applications.ResNet50(input_shape=(224, 224, 1), include_top=False, weights=None)
+            # flatten here?
+            net = slim.dropout(net, 0.5)
+            net = slim.conv2d(net, num_classes, [1,1])
 
-    # create registration classification model
-    im1 = layers.Input(shape=(224, 224, 1), name='View1')
-    im2 = layers.Input(shape=(224, 224, 1), name='View2')
-    im3 = layers.Input(shape=(224, 224, 1), name='View3')
+            # output heads
+            net_output = slim.flatten(net) # -> N,2
+            logits = slim.softmax( net_output )
+            class_out = tf.argmax(input=net_output, axis=1),
 
-    # use the same inner model for three images
-    x1 = augment_inner_model(inner_model, conv, im1, dropout=dropout, out_filters=filters) 
-    x2 = augment_inner_model(inner_model, conv, im2, dropout=dropout, out_filters=filters)
-    x3 = augment_inner_model(inner_model, conv, im3, dropout=dropout, out_filters=filters)
-
-    # join together
-    x = layers.Concatenate(axis=-1)( [x1,x2,x3] )
-
-    # learn spatial features of the merged layers
-    x = layers.Conv2D(filters*3, (1,1), activation='relu')(x)
-    x = layers.BatchNormalization()(x)
-
-    x = layers.Conv2D(16, (1,1), activation='relu')(x)
-    x = layers.BatchNormalization()(x)
-
-    x = layers.Conv2D(4, (1,1), activation='relu')(x)
-    x = layers.BatchNormalization()(x)
-    # output per region activation
-
-    x = layers.Conv2D(1,(1,1))(x)
-    x = layers.GlobalAveragePooling2D()(x) # average across all image
-
-    # end of spatial preprocessing
-    x = layers.Flatten(name='qc')(x)
-
-    out_model = tf.keras.models.Model(inputs=[im1,im2,im3], outputs=x)
-
-    return out_model
-    
+    return net_output, logits, class_out
