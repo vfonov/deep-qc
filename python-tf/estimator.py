@@ -36,7 +36,7 @@ class LoadEMAHook(tf.train.SessionRunHook):
 
 def _flags2params(flags):
     # HACK
-    return {
+    params = {
         # 'batch_size':flags.batch_size,  # to be set by estimator
         'model_dir':flags.model_dir,
         'moving_average':flags.moving_average,
@@ -49,6 +49,11 @@ def _flags2params(flags):
         'multigpu':flags.multigpu,
         'flavor':flags.flavor
     }
+    # for non TPUEstimator need to provide batch_size
+    if flags.multigpu:
+        params['batch_size']=flags.batch_size
+    
+    return params
     
 
     
