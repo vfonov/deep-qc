@@ -34,6 +34,10 @@ tf.flags.DEFINE_string(
     "model_directory to export the checkpoints during training.")
 # Model specific parameters
 tf.flags.DEFINE_string(
+    "warm_start", default=None,
+    help="path for the previously trained model, to start from")
+# Model specific parameters
+tf.flags.DEFINE_string(
     "training_data", default="deep_qc_data_shuffled_20190805_train.tfrecord",
     help="This should be the path of GCS bucket with input data")
 tf.flags.DEFINE_string(
@@ -193,7 +197,7 @@ def main(argv):
     #batch_axis = 0
 
     aqc_estimator = create_AQC_estimator(FLAGS, 
-        tpu_cluster_resolver = tpu_cluster_resolver, warm_start_from=FLAGS.model_dir if FLAGS.testing else None)
+        tpu_cluster_resolver = tpu_cluster_resolver, warm_start_from=FLAGS.warm_start )
 
     def _train_data(params): 
         dataset = load_data(
