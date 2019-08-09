@@ -102,6 +102,9 @@ tf.flags.DEFINE_integer(
 tf.flags.DEFINE_integer(
     "save_summary_steps", default=10,
     help="Saving summary steps")
+tf.flags.DEFINE_integer(
+    "mult", default=1,
+    help="multiply number of steps in training")
 tf.flags.DEFINE_bool(
     "log_device_placement", default=False,
     help="log_device_placement")
@@ -224,11 +227,11 @@ def main(argv):
     steps_per_cycle = FLAGS.n_samples//FLAGS.batch_size//FLAGS.eval_per_epoch
 
     if not FLAGS.testing:
-        for cycle in range(FLAGS.train_epochs * FLAGS.eval_per_epoch):
+        for cycle in range(FLAGS.train_epochs * FLAGS.eval_per_epoch//FLAGS.mult):
             #tf.logging.info('Starting training cycle %d.' % cycle)
             aqc_estimator.train(
                 input_fn = _train_data,
-                steps = steps_per_cycle)
+                steps = steps_per_cycle*FLAGS.mult)
 
             #tf.logging.info('Starting evaluation cycle %d .' % cycle)
             eval_results = aqc_estimator.evaluate(

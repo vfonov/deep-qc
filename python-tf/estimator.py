@@ -208,7 +208,7 @@ def create_AQC_estimator(flags, tpu_cluster_resolver=None,warm_start_from=None):
     if flags.xla: 
         optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
     
-    steps_per_cycle = flags.n_samples//flags.batch_size//flags.eval_per_epoch
+    steps_per_cycle = flags.n_samples*flags.mult//flags.batch_size//flags.eval_per_epoch
     
     if flags.multigpu:
         _strategy = tf.distribute.MirroredStrategy()
