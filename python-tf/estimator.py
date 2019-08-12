@@ -47,10 +47,11 @@ def _flags2params(flags):
         'learning_rate_decay':flags.learning_rate_decay,
         'optimizer':flags.optimizer,
         'multigpu':flags.multigpu,
+        'gpu':flags.gpu,
         'flavor':flags.flavor
     }
     # for non TPUEstimator need to provide batch_size
-    if flags.multigpu:
+    if flags.multigpu or flags.gpu:
         params['batch_size']=flags.batch_size
     
     return params
@@ -181,7 +182,7 @@ def model_fn(features, labels, mode, params):
                 with tf.control_dependencies([gradients_norm, labels]): # print_ops
                     tf.summary.scalar("gradient norm", gradients_norm)
     
-    if training_active and not params["multigpu"]:
+    if training_active and not params["multigpu"] and not params["gpu"]:
         return tf.estimator.tpu.TPUEstimatorSpec(
             mode=mode,
             loss=loss,
@@ -210,7 +211,7 @@ def create_AQC_estimator(flags, tpu_cluster_resolver=None,warm_start_from=None):
     
     steps_per_cycle = flags.n_samples*flags.mult//flags.batch_size//flags.eval_per_epoch
     
-    if flags.multigpu:
+    if flags.multigpu: # train on multiple GPUs
         _strategy = tf.distribute.MirroredStrategy()
         session_config = tf.ConfigProto(
             allow_soft_placement = True,
@@ -231,7 +232,27 @@ def create_AQC_estimator(flags, tpu_cluster_resolver=None,warm_start_from=None):
             model_dir = flags.model_dir,
             params = _flags2params(flags),
             warm_start_from=warm_start_from)
-    else:
+    elif flags.gpu: # train on single GPU using Estimator
+        session_config = tf.ConfigProto(
+            allow_soft_placement = True,
+            log_device_placement = flags.log_device_placement)
+        if flags.xla:
+            session_config.graph_options.optimizer_options.global_jit_level=tf.OptimizerOptions.ON_1
+
+        run_config = tf.estimator.RunConfig(
+            save_checkpoints_secs=flags.save_checkpoints_secs,
+            save_summary_steps=flags.save_summary_steps,
+            session_config=session_config
+            )
+        
+        aqc_classifier = tf.estimator.Estimator(
+            model_fn = model_fn,
+            config = run_config,
+            model_dir = flags.model_dir,
+            params = _flags2params(flags),
+            warm_start_from=warm_start_from)
+
+    else: # use TPU estimator
         session_config = tf.ConfigProto(
             allow_soft_placement = True,
             log_device_placement = flags.log_device_placement)

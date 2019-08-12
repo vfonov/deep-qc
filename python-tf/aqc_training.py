@@ -116,6 +116,9 @@ tf.flags.DEFINE_bool(
     "multigpu", default=False,
     help="Use all available GPUs")
 tf.flags.DEFINE_bool(
+    "gpu", default=False,
+    help="Train on GPU using Estimator")
+tf.flags.DEFINE_bool(
     "xla",default=False,
     help="Use xla compiler")
 tf.flags.DEFINE_bool(
@@ -124,6 +127,11 @@ tf.flags.DEFINE_bool(
 tf.flags.DEFINE_string(
     "flavor", default="r50",
     help="inner net flavor: r50,r152,r200,m")
+
+tf.flags.DEFINE_string(
+    "export", default=None,
+    help="export model for serving")
+    
 
 
 FLAGS = tf.flags.FLAGS
@@ -162,7 +170,6 @@ def load_data(batch_size=None, filenames=None, training=True):
         # , 'subj':a['subj']
         return {'View1': img1, 'View2': img2, 'View3': img3}, {'qc': a['qc']}
 
-    
     dataset = raw_ds.map(_parse_feature, num_parallel_calls=AUTOTUNE).map(_decode_jpeg, num_parallel_calls=AUTOTUNE)
     
     if training:
@@ -228,30 +235,34 @@ def main(argv):
     else:
         eval_hooks = []
 
-    steps_per_cycle = FLAGS.n_samples//FLAGS.batch_size//FLAGS.eval_per_epoch
-
-    if not FLAGS.testing:
-        for cycle in range(FLAGS.train_epochs * FLAGS.eval_per_epoch//FLAGS.mult):
-            #tf.logging.info('Starting training cycle %d.' % cycle)
-            aqc_estimator.train(
-                input_fn = _train_data,
-                steps = steps_per_cycle*FLAGS.mult)
-
-            #tf.logging.info('Starting evaluation cycle %d .' % cycle)
-            eval_results = aqc_estimator.evaluate(
-                input_fn = _eval_data,
-                hooks = eval_hooks,
-                steps = math.ceil(FLAGS.n_val_samples/FLAGS.eval_batch_size)
-                )
-            tf.logging.info('Evaluation results: {}'.format(eval_results))
+    if FLAGS.export is not None:
+        # just export model, don't train or evaluate
+        aqc_estimator.export_saved_model(FLAGS.export, _eval_data ) # TODO: should I deal with eval_hooks somewhere?
     else:
-        # run evaluation on testing dataset
-        testing_results = aqc_estimator.evaluate(
-            input_fn = _testing_data,
-            hooks = eval_hooks,
-            steps = math.ceil(FLAGS.n_test_samples/FLAGS.eval_batch_size)
-            )
-        tf.logging.info('Testing results: {}'.format(testing_results))
+        steps_per_cycle = FLAGS.n_samples//FLAGS.batch_size//FLAGS.eval_per_epoch
+        
+        if FLAGS.testing:
+            # run evaluation on testing dataset
+            testing_results = aqc_estimator.evaluate(
+                input_fn = _testing_data,
+                hooks = eval_hooks,
+                steps = math.ceil(FLAGS.n_test_samples/FLAGS.eval_batch_size)
+                )
+            tf.logging.info('Testing results: {}'.format(testing_results))
+        else:
+            for cycle in range(FLAGS.train_epochs * FLAGS.eval_per_epoch//FLAGS.mult):
+                #tf.logging.info('Starting training cycle %d.' % cycle)
+                aqc_estimator.train(
+                    input_fn = _train_data,
+                    steps = steps_per_cycle*FLAGS.mult)
+
+                #tf.logging.info('Starting evaluation cycle %d .' % cycle)
+                eval_results = aqc_estimator.evaluate(
+                    input_fn = _eval_data,
+                    hooks = eval_hooks,
+                    steps = math.ceil(FLAGS.n_val_samples/FLAGS.eval_batch_size)
+                    )
+                tf.logging.info('Evaluation results: {}'.format(eval_results))
 
             
 
