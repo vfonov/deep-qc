@@ -243,7 +243,6 @@ def create_AQC_estimator(flags, tpu_cluster_resolver=None,warm_start_from=None):
             save_checkpoints_secs=flags.save_checkpoints_secs if not flags.testing else None,
             save_summary_steps=flags.save_summary_steps,
             session_config=session_config
-            save_checkpoints_secs=None
             )
 
         
