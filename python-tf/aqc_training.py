@@ -104,7 +104,7 @@ tf.flags.DEFINE_integer(
     "save_checkpoints_secs", default=600,
     help="Saving checkpoint freq")
 tf.flags.DEFINE_integer(
-    "save_summary_steps", default=10,
+    "save_summary_steps", default=100,
     help="Saving summary steps")
 tf.flags.DEFINE_integer(
     "mult", default=1,
