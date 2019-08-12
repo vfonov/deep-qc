@@ -225,7 +225,10 @@ def create_AQC_estimator(flags, tpu_cluster_resolver=None,warm_start_from=None):
             train_distribute=_strategy,
             session_config=session_config
             )
-        
+        if flags.testing: # disable saving checkpoints
+            run_config.save_checkpoints_steps=None
+            run_config.save_checkpoints_secs=None
+
         aqc_classifier = tf.estimator.Estimator(
             model_fn = model_fn,
             config = run_config,
@@ -244,6 +247,10 @@ def create_AQC_estimator(flags, tpu_cluster_resolver=None,warm_start_from=None):
             save_summary_steps=flags.save_summary_steps,
             session_config=session_config
             )
+
+        if flags.testing: # disable saving checkpoints
+            run_config.save_checkpoints_steps=None
+            run_config.save_checkpoints_secs=None
         
         aqc_classifier = tf.estimator.Estimator(
             model_fn = model_fn,
@@ -270,6 +277,10 @@ def create_AQC_estimator(flags, tpu_cluster_resolver=None,warm_start_from=None):
                 iterations_per_loop = steps_per_cycle,
                 per_host_input_for_training = True),
         )
+        
+        if flags.testing: # disable saving checkpoints
+            run_config.save_checkpoints_steps=None
+            run_config.save_checkpoints_secs=None
 
         aqc_classifier = tf.estimator.tpu.TPUEstimator(
             model_fn = model_fn,
