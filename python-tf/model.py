@@ -53,7 +53,7 @@ def _create_inner_model_s(images, scope=None, is_training=True, reuse=False, fla
                 net = slim.conv2d(images, 64, [7,7], scope='conv1', padding='SAME')
 
                 net, _ = resnet_v2(images, blocks, 16, is_training=is_training,
-                                global_pool=False, output_stride=16, # try 8 ?
+                                global_pool=False, output_stride=8, # try 8 ?
                                 include_root_block=False, spatial_squeeze=False,
                                 reuse=reuse, scope=scope)
 
