@@ -140,9 +140,9 @@ def model_fn(features, labels, mode, params):
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             gradients = optimizer.compute_gradients(loss)
-            if not params["use_tpu"]:
-                # TODO: clip gradients
-                gradients_norm = tf.linalg.global_norm(gradients,"gradients_norm")
+            # if not params["use_tpu"]:
+            #     # TODO: clip gradients
+            #     gradients_norm = tf.linalg.global_norm(gradients,"gradients_norm")
             train_op = optimizer.apply_gradients(gradients, global_step=global_step)
 
         if params["moving_average"]:
@@ -172,15 +172,15 @@ def model_fn(features, labels, mode, params):
 
     ############ DEBUG ##########
     #print_op = tf.print(ids)
-    if not params["use_tpu"]:
-        summary_writer = tf.contrib.summary.create_file_writer(
-            os.path.join(params['model_dir'], 'debug' ), name='debug')
+    # if not params["use_tpu"]:
+    #     summary_writer = tf.contrib.summary.create_file_writer(
+    #         os.path.join(params['model_dir'], 'debug' ), name='debug')
 
-        with summary_writer.as_default():
-            if training_active:
-                #tf.summary.histogram("gradients", gradients)
-                with tf.control_dependencies([gradients_norm, labels]): # print_ops
-                    tf.summary.scalar("gradient norm", gradients_norm)
+    #     with summary_writer.as_default():
+    #         if training_active:
+    #             #tf.summary.histogram("gradients", gradients)
+    #             with tf.control_dependencies([gradients_norm, labels]): # print_ops
+    #                 tf.summary.scalar("gradient norm", gradients_norm)
     
     if training_active and not params["multigpu"] and not params["gpu"]:
         return tf.estimator.tpu.TPUEstimatorSpec(
