@@ -104,8 +104,8 @@ def create_qc_model(features, flavor='r50', scope='auto_qc', training_active=Tru
                                 is_training=training_active):
                 # concatenate along feature dimension 
                 net = tf.concat( [net1, net2, net3], -1)
-                net = slim.con2d(net, 16, [3,3])
-                net = slim.con2d(net, 2,  [3,3])
+                net = slim.conv2d(net, 16, [3,3])
+                net = slim.conv2d(net, 2,  [3,3])
                 spatial_logits = slim.softmax( net )
                 net_output = tf.reduce_mean(spatial_logits, [1, 2], keep_dims=False)
                 class_out = tf.argmax(input=net_output, axis=1)
