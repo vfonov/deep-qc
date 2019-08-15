@@ -50,10 +50,15 @@ def _create_inner_model_s(images, scope=None, is_training=True, reuse=False, fla
                     resnet_v2_block('block4', base_depth=512, num_units=3, stride=1),
                 ]
                 # pre-conversion
-                net = slim.conv2d(images, 64, [7,7], scope='conv1', padding='SAME')
-
-                net, _ = resnet_v2(images, blocks, 16, is_training=is_training,
-                                global_pool=False, output_stride=8, # try 8 ?
+                with slim.arg_scope([slim.conv2d],
+                                    activation_fn=None, normalizer_fn=None):
+                    net = slim.conv2d(images, 64, [7,7], 
+                        rate=2, padding='SAME', scope=scope) # TODO: experiment with rate
+                # 
+                net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool1')
+                #
+                net, _ = resnet_v2(images, blocks, 64, is_training=is_training,
+                                global_pool=False, output_stride=16, # try 8 ?
                                 include_root_block=False, spatial_squeeze=False,
                                 reuse=reuse, scope=scope)
 
@@ -104,11 +109,14 @@ def create_qc_model(features, flavor='r50', scope='auto_qc', training_active=Tru
                                 is_training=training_active):
                 # concatenate along feature dimension 
                 net = tf.concat( [net1, net2, net3], -1)
-                net = slim.conv2d(net, 16, [3,3])
-                net = slim.conv2d(net, 2,  [3,3])
-                spatial_logits = slim.softmax( net )
-                net_output = tf.reduce_mean(spatial_logits, [1, 2], keep_dims=False)
-                logits = net_output
+                net = slim.conv2d(net, 32, [3,3])
+                net = slim.conv2d(net, 32, [7,7], padding='VALID') # 7x7 -> 1x1 
+                # flatten here?
+                net = slim.dropout(net, 0.5)
+                net = slim.conv2d(net, num_classes, [1,1])
+                # 
+                net_output = slim.flatten(net) 
+                logits = slim.softmax( net_output )
                 class_out = tf.argmax(input=net_output, axis=1)
-
+    
     return net_output, logits, class_out
