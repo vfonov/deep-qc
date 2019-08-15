@@ -53,11 +53,11 @@ def _create_inner_model_s(images, scope=None, is_training=True, reuse=False, fla
                 with slim.arg_scope([slim.conv2d],
                                     activation_fn=None, normalizer_fn=None):
                     net = slim.conv2d(images, 64, [7,7],
-                        rate=2, padding='SAME', scope=scope) # TODO: experiment with rate
-                    net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool1')
+                        rate=2, padding='SAME', scope='conv1_pre') # TODO: experiment with rate
+                    net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool1_pre')
                     net = slim.conv2d(images, 64, [7,7],
-                        padding='SAME', scope=scope) # TODO: experiment with rate
-                    net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool2')
+                        padding='SAME', scope='conv2_pre') # TODO: experiment with rate
+                    net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool2_pre')
                 #
                 net, _ = resnet_v2(images, blocks, 64, is_training=is_training,
                                 global_pool=False, output_stride = None, # try 8 ?
