@@ -114,7 +114,7 @@ def create_qc_model(features, flavor='r50', scope='auto_qc', training_active=Tru
                 net = slim.conv2d(net, 16, [3, 3])
                 net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool_last')
                 print(net)
-                net = slim.conv2d(net, 16, [7,7], padding='VALID') # 7x7 -> 1x1 
+                net = slim.conv2d(net, 16, [13,13], padding='VALID') # 7x7 -> 1x1 
                 # flatten here?
                 net = slim.dropout(net, 0.5)
                 net = slim.conv2d(net, num_classes, [1,1])
