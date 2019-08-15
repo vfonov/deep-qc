@@ -52,10 +52,12 @@ def _create_inner_model_s(images, scope=None, is_training=True, reuse=False, fla
                 # pre-conversion
                 with slim.arg_scope([slim.conv2d],
                                     activation_fn=None, normalizer_fn=None):
-                    net = slim.conv2d(images, 64, [7,7], 
+                    net = slim.conv2d(images, 64, [7,7],
                         rate=2, padding='SAME', scope=scope) # TODO: experiment with rate
-                # 
-                net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool1')
+                    net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool1')
+                    net = slim.conv2d(images, 64, [7,7],
+                        padding='SAME', scope=scope) # TODO: experiment with rate
+                    net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool2')
                 #
                 net, _ = resnet_v2(images, blocks, 64, is_training=is_training,
                                 global_pool=False, output_stride = None, # try 8 ?
@@ -112,7 +114,7 @@ def create_qc_model(features, flavor='r50', scope='auto_qc', training_active=Tru
                 net = slim.conv2d(net, 16, [3, 3])
                 net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool_last')
                 print(net)
-                net = slim.conv2d(net, 16, [13,13], padding='VALID') # 7x7 -> 1x1 
+                net = slim.conv2d(net, 16, [7,7], padding='VALID') # 7x7 -> 1x1 
                 # flatten here?
                 net = slim.dropout(net, 0.5)
                 net = slim.conv2d(net, num_classes, [1,1])
