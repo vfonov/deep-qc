@@ -107,14 +107,17 @@ def create_qc_model(features, flavor='r50', scope='auto_qc', training_active=Tru
             net1 = _create_inner_model_s(images1, scope='InnerModel', is_training=training_active, flavor=flavor)
             net2 = _create_inner_model_s(images2, scope='InnerModel', is_training=training_active, reuse=True, flavor=flavor)
             net3 = _create_inner_model_s(images3, scope='InnerModel', is_training=training_active, reuse=True, flavor=flavor)
+
             with slim.arg_scope([slim.batch_norm, slim.dropout],
                                 is_training=training_active):
                 # concatenate along feature dimension 
                 net = tf.concat( [net1, net2, net3], -1)
-                net = slim.conv2d(net, 16, [3, 3])
+                net = slim.conv2d(net, 32, [3, 3])
                 net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool_last')
+                net = slim.conv2d(net, 32, [3, 3], padding='VALID')
                 print(net)
-                net = slim.conv2d(net, 16, [13,13], padding='VALID') # 7x7 -> 1x1 
+                net = tf.reduce_mean(net, [1, 2], name='pool_global', keep_dims=True)
+                print(net)
                 # flatten here?
                 net = slim.dropout(net, 0.5)
                 net = slim.conv2d(net, num_classes, [1,1])
