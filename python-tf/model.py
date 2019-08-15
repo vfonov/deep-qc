@@ -58,7 +58,7 @@ def _create_inner_model_s(images, scope=None, is_training=True, reuse=False, fla
                 net = slim.avg_pool2d(net, [3, 3], stride=2, scope='pool1')
                 #
                 net, _ = resnet_v2(images, blocks, 64, is_training=is_training,
-                                global_pool=False, output_stride=16, # try 8 ?
+                                global_pool=False, output_stride = None, # try 8 ?
                                 include_root_block=False, spatial_squeeze=False,
                                 reuse=reuse, scope=scope)
 
@@ -110,7 +110,8 @@ def create_qc_model(features, flavor='r50', scope='auto_qc', training_active=Tru
                 # concatenate along feature dimension 
                 net = tf.concat( [net1, net2, net3], -1)
                 net = slim.conv2d(net, 32, [3,3])
-                net = slim.conv2d(net, 32, [7,7], padding='VALID') # 7x7 -> 1x1 
+                print(net)
+                net = slim.conv2d(net, 32, [14,14], padding='VALID') # 7x7 -> 1x1 
                 # flatten here?
                 net = slim.dropout(net, 0.5)
                 net = slim.conv2d(net, num_classes, [1,1])
@@ -118,5 +119,5 @@ def create_qc_model(features, flavor='r50', scope='auto_qc', training_active=Tru
                 net_output = slim.flatten(net) 
                 logits = slim.softmax( net_output )
                 class_out = tf.argmax(input=net_output, axis=1)
-    
+
     return net_output, logits, class_out
