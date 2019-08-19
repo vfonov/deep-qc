@@ -206,12 +206,18 @@ def main(argv):
     # count samples available
     if FLAGS.testing :
         if FLAGS.n_test_samples==0:
+            print("Counting test samples...")
             FLAGS.n_test_samples=sum(1 for i in tf.data.TFRecordDataset(FLAGS.testing_data))
+            print(FLAGS.n_test_samples)
     else:
         if FLAGS.n_samples==0:
+            print("Counting training samples...")
             FLAGS.n_samples=sum(1 for i in tf.data.TFRecordDataset(FLAGS.training_data))
+            print(FLAGS.n_samples)
         if FLAGS.n_val_samples==0:
+            print("Counting validation samples...")
             FLAGS.n_val_samples=sum(1 for i in tf.data.TFRecordDataset(FLAGS.validation_data))
+            print(FLAGS.n_val_samples)
 
 
     #batch_size_per_shard = FLAGS.batch_size // FLAGS.num_cores
