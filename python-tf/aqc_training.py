@@ -66,13 +66,13 @@ tf.flags.DEFINE_integer(
 #     help="Total number of evaluation steps. If `0`, evaluation "
 #     "after training is skipped.")
 tf.flags.DEFINE_integer(
-    "n_samples", default=57848,
+    "n_samples", default=0,
     help="Number of samples")
 tf.flags.DEFINE_integer(
-    "n_val_samples", default=1097,
+    "n_val_samples", default=0,
     help="Number of validation samples")
 tf.flags.DEFINE_integer(
-    "n_test_samples", default=4246,
+    "n_test_samples", default=0,
     help="Number of testing samples")
 flags.DEFINE_float(
     'learning_rate', 1e-3, 'Initial learning rate')
@@ -202,6 +202,17 @@ def main(argv):
         tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(_tpu)
     else:
         tpu_cluster_resolver = None
+
+    # count samples available
+    if FLAGS.testing :
+        if FLAGS.n_test_samples==0:
+            FLAGS.n_test_samples=sum(1 for i in tf.data.TFRecordDataset(FLAGS.testing_data))
+    else:
+        if FLAGS.n_samples==0:
+            FLAGS.n_samples=sum(1 for i in tf.data.TFRecordDataset(FLAGS.training_data))
+        if FLAGS.n_val_samples==0:
+            FLAGS.n_val_samples=sum(1 for i in tf.data.TFRecordDataset(FLAGS.validation_data))
+
 
     #batch_size_per_shard = FLAGS.batch_size // FLAGS.num_cores
     #batch_axis = 0
