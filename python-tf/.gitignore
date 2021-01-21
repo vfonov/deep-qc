@@ -1,0 +1,13 @@
+# temorary outputs
+model
+training
+# python cache
+__pycache__
+*.pyc
+# raw data
+*.tfrecord
+# TPU code from google
+tpu
+master.zip
+tpu-master
+
