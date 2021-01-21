@@ -10,7 +10,7 @@ def load_model(model, to_load):
     """
     load a previously trained model.
     """
-    print('Loading the model from {} ...' .format( to_load))
+    #print('Loading the model from {} ...' .format( to_load))
     model.load_state_dict( torch.load(to_load) )
 
 def save_model(model, name, base):
