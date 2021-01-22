@@ -93,12 +93,14 @@ if __name__ == '__main__':
     training_dataloader = DataLoader(train_dataset, 
                           batch_size=params.batch_size,
                           shuffle=True, 
-                          num_workers=params.workers)
+                          num_workers=params.workers,
+                          drop_last=True)
     
     validation_dataloader = DataLoader(validate_dataset, 
                           batch_size=params.batch_size,
                           shuffle=False, 
-                          num_workers=params.workers)
+                          num_workers=params.workers,
+                          drop_last=False)
 
     model = get_qc_model(params,use_ref=use_ref,pretrained=False)    
 

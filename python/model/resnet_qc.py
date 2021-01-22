@@ -152,7 +152,7 @@ class ResNetQC(nn.Module):
         self.inplanes = 64
         self.dilation = 1
         self.expansion = block.expansion
-        
+
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
             # the 2x2 stride with a dilated convolution instead
@@ -372,12 +372,87 @@ def resnet_qc_152(pretrained: bool=False, progress: bool = True, **kwargs)  -> R
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = _resnet_qc( Bottleneck, [3, 8, 36, 3], pretrained, progress,
-                   **kwargs)
+    model = _resnet_qc( Bottleneck, [3, 8, 36, 3], progress, **kwargs)
 
     if pretrained:
-        model_ft = models.resnet152(pretrained=True)
+        model_ft = models.resnet152(pretrained=True,progress=progress)
         model.load_from_std(model_ft)
     return model
 
 
+def resnext_qc_50_32x4d(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> ResNetQC:
+    r"""ResNeXt-50 32x4d model from
+    `"Aggregated Residual Transformation for Deep Neural Networks" <https://arxiv.org/pdf/1611.05431.pdf>`_.
+
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    kwargs['groups'] = 32
+    kwargs['width_per_group'] = 4
+    model = _resnet_qc(Bottleneck, [3, 4, 6, 3], progress, **kwargs)
+    if pretrained:
+        model_ft = models.resnext_50_32x4d(pretrained=True, progress=progress)
+        model.load_from_std(model_ft)
+    return model
+
+
+def resnext_qc_101_32x8d(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> ResNetQC:
+    r"""ResNeXt-101 32x8d model from
+    `"Aggregated Residual Transformation for Deep Neural Networks" <https://arxiv.org/pdf/1611.05431.pdf>`_.
+
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    kwargs['groups'] = 32
+    kwargs['width_per_group'] = 8
+    model =  _resnet_qc(Bottleneck, [3, 4, 23, 3], progress, **kwargs)
+
+    if pretrained:
+        model_ft = models.resnext_32x8d(pretrained=True, progress=progress)
+        model.load_from_std(model_ft)
+    return model
+
+
+def wide_resnet_qc_50_2(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> ResNetQC:
+    r"""Wide ResNet-50-2 model from
+    `"Wide Residual Networks" <https://arxiv.org/pdf/1605.07146.pdf>`_.
+
+    The model is the same as ResNet except for the bottleneck number of channels
+    which is twice larger in every block. The number of channels in outer 1x1
+    convolutions is the same, e.g. last block in ResNet-50 has 2048-512-2048
+    channels, and in Wide ResNet-50-2 has 2048-1024-2048.
+
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    kwargs['width_per_group'] = 64 * 2
+    model = _resnet_qc(Bottleneck, [3, 4, 6, 3], progress, **kwargs)
+
+    if pretrained:
+        model_ft = models.wide_resnet_50_2(pretrained=True, progress=progress)
+        model.load_from_std(model_ft)
+    return model
+
+
+def wide_resnet_qc_101_2(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> ResNetQC:
+    r"""Wide ResNet-101-2 model from
+    `"Wide Residual Networks" <https://arxiv.org/pdf/1605.07146.pdf>`_.
+
+    The model is the same as ResNet except for the bottleneck number of channels
+    which is twice larger in every block. The number of channels in outer 1x1
+    convolutions is the same, e.g. last block in ResNet-50 has 2048-512-2048
+    channels, and in Wide ResNet-50-2 has 2048-1024-2048.
+
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    kwargs['width_per_group'] = 64 * 2
+    model = _resnet_qc(Bottleneck, [3, 4, 23, 3], progress, **kwargs)
+    if pretrained:
+        model_ft = models.wide_resnet_101_2(pretrained=True, progress=progress)
+        model.load_from_std(model_ft)
+    return model
