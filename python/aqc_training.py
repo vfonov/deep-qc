@@ -42,7 +42,10 @@ def parse_options():
                         help="Load pretrained model")
     parser.add_argument("--val",action="store_true",default=False,
                         help="Validate that all files are there") 
-    parser.add_argument("--net", choices=['r18', 'r34', 'r50','r101','r152','sq101'],
+    parser.add_argument("--net", choices=['r18', 'r34', 'r50','r101','r152',
+                                          'sq101',
+                                          'x50', 'x101',
+                                          'wr50','wr101'],
                     help="Network type",default='r18')
     parser.add_argument("--adam",action="store_true",default=False,
                         help="Use ADAM instead of SGD") 
@@ -125,8 +128,6 @@ if __name__ == '__main__':
         print('Epoch {}/{}'.format(epoch, params.n_epochs - 1))
         print('-' * 10)
 
-        if not params.adam:
-            scheduler.step()
         model.train(True)  # Set model to training mode
 
         # for stats
@@ -231,6 +232,9 @@ if __name__ == '__main__':
                 print("{} - {},{}".format(global_ctr,v_batch_loss,v_batch_acc))
                 model.train(True)
             global_ctr += 1
+        
+        if not params.adam:
+            scheduler.step()
 
         # aggregate epoch statistics           
         epoch_loss = running_loss / dataset_size
@@ -272,8 +276,8 @@ if __name__ == '__main__':
     model.train(False)
     save_model(model,"final",params.output)
 
-    writer.export_scalars_to_json(params.output+os.sep+"./all_scalars.json")
-    writer.close()
+    #writer.export_scalars_to_json(params.output+os.sep+"./all_scalars.json")
+    #writer.close()
     
     # get the best models
     model.load_state_dict(best_model_acc)

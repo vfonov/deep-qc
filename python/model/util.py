@@ -26,6 +26,14 @@ def save_model(model, name, base):
 
 
 def get_qc_model(params, use_ref=False, pretrained=True):
+    """
+    Generate QC model
+     params.net: 'r18', 'r34', 'r50','r101','r152',
+                'sq101',
+                'x50', 'x101',
+                'wr50','wr101'
+    """
+
     if params.net=='r34':
         model=resnet_qc_34(pretrained=pretrained and params.load is None,use_ref=use_ref)
     elif params.net=='r50':
@@ -36,10 +44,20 @@ def get_qc_model(params, use_ref=False, pretrained=True):
         model=resnet_qc_152(pretrained=pretrained and params.load is None,use_ref=use_ref)
     elif params.net=='sq101':
         model=squeezenet_qc(pretrained=pretrained and params.load is None,use_ref=use_ref)
-    else:
+    elif params.net=='r18':
         model=resnet_qc_18(pretrained=pretrained and params.load is None,use_ref=use_ref)
+    elif params.net=='x50': 
+        model=resnext_qc_50_32x4d(pretrained=pretrained and params.load is None,use_ref=use_ref)
+    elif params.net=='x101': 
+        model=resnext_qc_101_32x8d(pretrained=pretrained and params.load is None,use_ref=use_ref)
+    elif params.net=='wr50': 
+        model=wide_resnet_qc_50_2(pretrained=pretrained and params.load is None,use_ref=use_ref)
+    elif params.net=='wr101': 
+        model=wide_resnet_qc_101_2(pretrained=pretrained and params.load is None,use_ref=use_ref)
+    else:
+        raise("Unsupported model:"+params.net)
     
     if params.load is not None:
-        load_model(model,params.load)
+        load_model(model, params.load)
 
     return model
