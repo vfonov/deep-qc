@@ -10,7 +10,6 @@ for m in sq101,10,64 \
  i=( ${m//,/ } )
  if [ ! -e model_${i[0]}/final.pth ];then
  python3 aqc_training.py --net ${i[0]} --adam --n_epochs ${i[1]} --batch_size ${i[2]}  model_${i[0]} 2>&1 |tee log_${i[0]}.txt
-
  fi
 
 done
