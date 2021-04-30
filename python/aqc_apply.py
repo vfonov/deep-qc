@@ -83,9 +83,12 @@ if __name__ == '__main__':
     
     if params.batch is not None:
         if not params.batch_pics :
-            dataset = MincVolumesDataset(csv_file=params.batch,winsorize_low=params.low,winsorize_high=params.high) 
+            dataset = MincVolumesDataset(csv_file=params.batch,
+                winsorize_low=params.low,
+                winsorize_high=params.high) 
         else:
-            dataset = QCImagesDataset(csv_file=params.batch)
+            dataset = QCImagesDataset(csv_file=params.batch,
+                        data_prefix=default_data_dir + "../data")
         
         dataloader = DataLoader(dataset, 
                           batch_size=params.batch_size,

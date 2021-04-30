@@ -156,7 +156,10 @@ class MincVolumesDataset(Dataset):
         file_list - list of minc files to load
         csv_file - name of csv file to load list from (first column)
     """
-    def __init__(self, file_list=None, csv_file=None,winsorize_low=5,winsorize_high=95):
+    def __init__(self, file_list=None, csv_file=None, winsorize_low=5, winsorize_high=95, 
+                    use_ref=False, data_prefix=None):
+        self.use_ref  = use_ref
+        self.data_prefix = data_prefix
         self.winsorize_low=winsorize_low
         self.winsorize_high=winsorize_high
 
@@ -169,13 +172,26 @@ class MincVolumesDataset(Dataset):
                 self.file_list.append(r[0])
         else:
             self.file_list=[]
+
+        if self.use_ref:
+            # TODO: allow specify as parameter?
+            self.ref_img = load_qc_images(
+                           [self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_0.jpg",
+                            self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_1.jpg",
+                            self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_2.jpg"])
         
     def __len__(self):
         return len(self.file_list)
 
     def __getitem__(self, idx):
-        return torch.cat(load_minc_images(self.file_list[idx], winsorize_low=self.winsorize_low, winsorize_high=self.winsorize_high)).unsqueeze(0),\
-               self.file_list[idx]
+        _images = load_minc_images(self.file_list[idx], winsorize_low=self.winsorize_low, winsorize_high=self.winsorize_high)
+
+        if self.use_ref:
+            _images = torch.cat( [ item for sublist in zip(_images, self.ref_img) for item in sublist ] )
+        else:
+            _images = torch.cat( _images )
+        return _images.unsqueeze(0), self.file_list[idx]
+
 
 
 class QCImagesDataset(Dataset):
