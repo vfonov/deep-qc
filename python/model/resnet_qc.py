@@ -344,7 +344,7 @@ def resnet_qc_50(pretrained: bool=False,progress: bool = True, **kwargs) -> ResN
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = _resnet_qc('resnet50', Bottleneck, [3, 4, 6, 3], progress, **kwargs)
+    model = _resnet_qc(Bottleneck, [3, 4, 6, 3], progress, **kwargs)
 
     if pretrained:
         model_ft = models.resnet50(pretrained=True)
