@@ -60,11 +60,11 @@ def parse_options():
 
 if __name__ == '__main__':
     params = parse_options()
-    data_prefix="../data"
-    use_ref=False
-    val_subjects=100
-    db_name='qc_db.sqlite3'
-    qc_db=sqlite3.connect(data_prefix + os.sep + db_name)
+    data_prefix = "../data"
+    use_ref = params.ref
+    val_subjects = 100
+    db_name = 'qc_db.sqlite3'
+    qc_db = sqlite3.connect(data_prefix + os.sep + db_name)
 
     # create table with random order if not exists
     qc_db.executescript("""
@@ -80,15 +80,15 @@ if __name__ == '__main__':
 
     #     create table mem.train_subjects as SELECT subject FROM mem.all_subjects WHERE subject not in (SELECT subject FROM mem.val_subjects );
 
-    train_dataset    = QCDataset(qc_db,data_prefix, use_ref=use_ref, validate=params.val, training_path=True)
-    validate_dataset = QCDataset(qc_db,data_prefix, use_ref=use_ref, validate=params.val, training_path=False)
+    train_dataset    = QCDataset(qc_db, data_prefix, use_ref=use_ref, validate=params.val, training_path=True)
+    validate_dataset = QCDataset(qc_db, data_prefix, use_ref=use_ref, validate=params.val, training_path=False)
     print(train_dataset.validate)
     
     print("Training {} samples {} unique subjects".format(len(train_dataset),train_dataset.n_subjects()))
     print("Validation {} samples {} unique subjects".format(len(validate_dataset),validate_dataset.n_subjects()))
     # TODO: -- preshuffle all samples 
     # TODO: -- preshuffle all subjects
-    dataset_size=len(train_dataset)
+    dataset_size = len(train_dataset)
 
     training_dataloader = DataLoader(train_dataset, 
                           batch_size=params.batch_size,

@@ -82,7 +82,11 @@ if __name__ == '__main__':
     softmax=nn.Softmax(dim=1)
     
     if params.batch is not None:
-        dataset = MincVolumesDataset(csv_file=params.batch,winsorize_low=params.low,winsorize_high=params.high) if not params.batch_pics else QCImagesDataset(csv_file=params.batch)
+        if not params.batch_pics :
+            dataset = MincVolumesDataset(csv_file=params.batch,winsorize_low=params.low,winsorize_high=params.high) 
+        else:
+            dataset = QCImagesDataset(csv_file=params.batch)
+        
         dataloader = DataLoader(dataset, 
                           batch_size=params.batch_size,
                           shuffle=False, 
@@ -103,7 +107,7 @@ if __name__ == '__main__':
                 print("{},{}".format(i,j))
     else:
         if params.image is not None:
-            inputs = load_qc_images([params.image+'_0.jpg',params.image+'_1.jpg',params.image+'_2.jpg'])
+            inputs = load_qc_images( [params.image+'_0.jpg', params.image+'_1.jpg', params.image+'_2.jpg'])
         elif params.volume is not None:
             tmpdir=None
             volume=params.volume

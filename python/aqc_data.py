@@ -75,21 +75,21 @@ class QCDataset(Dataset):
         self.training = training_path
         self.data_prefix = data_prefix
         #
-        self.qc_db=db
-        self.qc_samples,self.qc_subjects=self.load_qc_db(self.data_prefix, training_path=training_path)
+        self.qc_db = db
+        self.qc_samples, self.qc_subjects = self.load_qc_db(self.data_prefix, training_path=training_path)
 
         if self.use_ref:
             # TODO: allow specify as parameter?
-            self.ref_img=load_qc_images([self.root_dir+os.sep+"/mni_icbm152_t1_tal_nlin_sym_09c_0.jpg",
-                            self.root_dir+os.sep+"/mni_icbm152_t1_tal_nlin_sym_09c_1.jpg",
-                            self.root_dir+os.sep+"/mni_icbm152_t1_tal_nlin_sym_09c_2.jpg"])
+            self.ref_img=load_qc_images(
+                           [self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_0.jpg",
+                            self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_1.jpg",
+                            self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_2.jpg"])
 
     def __len__(self):
         return len(self.qc_samples)
 
     def __getitem__(self, idx):
-        
-        _s=self.qc_samples[idx]
+        _s = self.qc_samples[idx]
         # load images     
         _images = load_qc_images(_s[2] )
 
@@ -187,7 +187,10 @@ class QCImagesDataset(Dataset):
         csv_file - name of csv file to load list from (first column should contain prefix )
     """
 
-    def __init__(self, file_list=None, csv_file=None):
+    def __init__(self, file_list=None, csv_file=None, use_ref=False, data_prefix=None):
+        self.use_ref  = use_ref
+        self.data_prefix = data_prefix
+
         if file_list is not None:
             self.file_list = file_list
         elif csv_file is not None:
@@ -198,9 +201,22 @@ class QCImagesDataset(Dataset):
         else:
             self.file_list = []
 
+        if self.use_ref:
+            # TODO: allow specify as parameter?
+            self.ref_img = load_qc_images(
+                           [self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_0.jpg",
+                            self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_1.jpg",
+                            self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_2.jpg"])
+
     def __len__(self):
         return len(self.file_list)
 
     def __getitem__(self, idx):
-        return torch.cat(load_qc_images([self.file_list[idx]+'_{}.jpg'.format(i) for i in range(3)])).unsqueeze(0), \
-               self.file_list[idx]
+        _images = load_qc_images( [ self.file_list[idx] + '_{}.jpg'.format(i) for i in range(3) ] )
+
+        if self.use_ref:
+            _images = torch.cat( [ item for sublist in zip(_images, self.ref_img) for item in sublist ] )
+        else:
+            _images = torch.cat( _images )
+
+        return _images.unsqueeze(0), self.file_list[idx]
