@@ -68,7 +68,7 @@ def parse_options():
 
 if __name__ == '__main__':
     params = parse_options()
-    use_ref = False
+    use_ref = params.ref
 
     if params.load is None:
         params.load = default_data_dir + os.sep \
@@ -85,10 +85,13 @@ if __name__ == '__main__':
         if not params.batch_pics :
             dataset = MincVolumesDataset(csv_file=params.batch,
                 winsorize_low=params.low,
-                winsorize_high=params.high) 
+                winsorize_high=params.high,
+                data_prefix=default_data_dir + "../data",
+                use_ref=use_ref) 
         else:
             dataset = QCImagesDataset(csv_file=params.batch,
-                        data_prefix=default_data_dir + "../data")
+                        data_prefix=default_data_dir + "/../data",
+                        use_ref=use_ref)
         
         dataloader = DataLoader(dataset, 
                           batch_size=params.batch_size,

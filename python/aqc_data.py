@@ -80,7 +80,7 @@ class QCDataset(Dataset):
 
         if self.use_ref:
             # TODO: allow specify as parameter?
-            self.ref_img=load_qc_images(
+            self.ref_img = load_qc_images(
                            [self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_0.jpg",
                             self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_1.jpg",
                             self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_2.jpg"])
@@ -234,5 +234,4 @@ class QCImagesDataset(Dataset):
             _images = torch.cat( [ item for sublist in zip(_images, self.ref_img) for item in sublist ] )
         else:
             _images = torch.cat( _images )
-
         return _images.unsqueeze(0), self.file_list[idx]
