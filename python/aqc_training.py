@@ -28,8 +28,6 @@ def parse_options():
 
     parser.add_argument("--n_epochs", type=int, default=10,
                         help="Total number of epochs")
-    parser.add_argument("--epoch_size", type=int, default=10000,
-                        help="Number of samples per epoch")
     parser.add_argument("--batch_size", type=int, default=8,
                         help="Batch size")
     parser.add_argument("--workers", type=int, default=2,
@@ -49,7 +47,7 @@ def parse_options():
                     help="Network type",default='r18')
     parser.add_argument("--adam",action="store_true",default=False,
                         help="Use ADAM instead of SGD") 
-    parser.add_argument("--lr",type=float, default=0.001,
+    parser.add_argument("--lr",type=float, default=0.0001,
                         help="Learning rate") 
 
 
@@ -62,7 +60,7 @@ if __name__ == '__main__':
     params = parse_options()
     data_prefix = "../data"
     use_ref = params.ref
-    val_subjects = 100
+    val_subjects = 200
     db_name = 'qc_db.sqlite3'
     qc_db = sqlite3.connect(data_prefix + os.sep + db_name)
 
@@ -94,7 +92,8 @@ if __name__ == '__main__':
                           batch_size=params.batch_size,
                           shuffle=True, 
                           num_workers=params.workers,
-                          drop_last=True)
+                          drop_last=True,
+                          pin_memory=True)
     
     validation_dataloader = DataLoader(validate_dataset, 
                           batch_size=params.batch_size,
@@ -108,9 +107,11 @@ if __name__ == '__main__':
     model     = model.cuda()
     criterion = nn.CrossEntropyLoss()
     if params.adam:
-        optimizer = optim.Adam(model.parameters(), lr=params.lr)
+        # parameters from LUA version
+        optimizer = optim.Adam(model.parameters(), 
+           lr=params.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.0001)
     else:
-        optimizer = optim.SGD(model.parameters(), lr=params.lr, momentum=0.9)
+        optimizer = optim.SGD(model.parameters(), lr=params.lr, momentum=0.9, weight_decay=0.0001)
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
     writer = SummaryWriter()
@@ -123,8 +124,9 @@ if __name__ == '__main__':
     best_acc = 0.0
     best_tnr = 0.0
     best_tpr = 0.0
+    best_fpr = 1.0
 
-    validation_period = 100
+    validation_period = 200
 
     for epoch in range(params.n_epochs):
         print('Epoch {}/{}'.format(epoch, params.n_epochs - 1))
@@ -138,7 +140,9 @@ if __name__ == '__main__':
 
         val_running_loss = 0.0
         val_running_acc  = 0.0
+
         val_running_tpr  = 0.0
+        val_running_fpr  = 0.0
         val_running_tnr  = 0.0
 
         val_ctr=0
@@ -159,8 +163,6 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-            
-
             batch_loss = loss.data.item() * inputs.size(0)
             batch_acc  = torch.sum(preds == labels.data).item()
 
@@ -169,7 +171,7 @@ if __name__ == '__main__':
             running_acc   += batch_acc
 
             # run validation from time-to time 
-            if (global_ctr%validation_period) == 0:
+            if ( global_ctr % validation_period ) == 0:
                 # training stats
                 writer.add_scalars('{}/training'.format(params.output),
                                    {'loss': batch_loss/inputs.size(0),
@@ -185,6 +187,7 @@ if __name__ == '__main__':
                 v_batch_tn    = 0.0
                 v_batch_ap    = 0.0
                 v_batch_an    = 0.0
+                v_batch_fp    = 0.0
 
                 for v_batch, v_sample_batched in enumerate(validation_dataloader):
                     inputs = v_sample_batched['image' ].cuda()
@@ -199,9 +202,11 @@ if __name__ == '__main__':
 
                     # calculating true positive and true negative
                     v_batch_tp   += float(torch.sum( (preds == 1)*(labels.data==1)))
+                    v_batch_fp   += float(torch.sum( (preds == 1)*(labels.data==0)))
                     v_batch_tn   += float(torch.sum( (preds == 0)*(labels.data==0)))
-                    v_batch_ap   += float(torch.sum( (preds == 1)))
-                    v_batch_an   += float(torch.sum( (preds == 0)))
+
+                    v_batch_ap   += float(torch.sum( (labels.data == 1)))
+                    v_batch_an   += float(torch.sum( (labels.data == 0)))
 
 
                 # (?)
@@ -215,6 +220,7 @@ if __name__ == '__main__':
 
                 if v_batch_an>0:
                     v_batch_tn  /= v_batch_an
+                    v_batch_fp  /= v_batch_an
                 else:
                     v_batch_tn = 0.0
 
@@ -222,13 +228,15 @@ if __name__ == '__main__':
                 val_running_acc  += v_batch_acc
                 val_running_tnr  += v_batch_tn
                 val_running_tpr  += v_batch_tp
+                val_running_fpr  += v_batch_fp
 
                 val_ctr += 1
                 writer.add_scalars('{}/validation'.format(params.output),
                                    {'loss': v_batch_loss ,
                                     'acc':  v_batch_acc,
                                     'tpr':  v_batch_tp,
-                                    'tnr':  v_batch_tn},
+                                    'tnr':  v_batch_tn,
+                                    'fpr':  v_batch_fp },
                                     global_ctr)
 
                 print("{} - {},{}".format(global_ctr,v_batch_loss,v_batch_acc))
@@ -241,21 +249,23 @@ if __name__ == '__main__':
         # aggregate epoch statistics           
         epoch_loss = running_loss / dataset_size
         epoch_acc  = running_acc / dataset_size
-
+        # TODO: perhaps this is not 
         epoch_val_loss = val_running_loss / val_ctr
         epoch_val_acc  = val_running_acc / val_ctr
         epoch_val_tpr  = val_running_tpr / val_ctr
         epoch_val_tnr  = val_running_tnr / val_ctr
+        epoch_val_fpr  = val_running_fpr / val_ctr
 
         writer.add_scalars('{}/validation_epoch'.format(params.output), 
                             {'loss': epoch_val_loss,
                              'acc':  epoch_val_acc,
                              'tpr':  epoch_val_tpr,
-                             'tnr':  epoch_val_tnr
+                             'tnr':  epoch_val_tnr,
+                             'fpr':  epoch_val_fpr
                              },
                             epoch)
         
-        print('Epoch: {} Validation Loss: {:.4f} Acc: {:.4f} TPR: {:.4f} TNR: {:.4f}'.format(epoch, epoch_val_loss, epoch_val_acc, epoch_val_tpr, epoch_val_tnr))
+        print('Epoch: {} Validation Loss: {:.4f} Acc: {:.4f} TPR: {:.4f} TNR: {:.4f} FPR:{:.4f}'.format(epoch, epoch_val_loss, epoch_val_acc, epoch_val_tpr, epoch_val_tnr,epoch_val_fpr))
 
         if epoch_val_acc > best_acc:
                 best_acc = epoch_val_acc
@@ -275,6 +285,12 @@ if __name__ == '__main__':
                 model.train(False)
                 save_model(model,"best_tnr",params.output)
 
+        if epoch_val_fpr < best_fpr:
+                best_fpr = epoch_val_fpr
+                best_model_fpr = copy.deepcopy(model.state_dict())
+                model.train(False)
+                save_model(model,"best_fpr",params.output)
+
     model.train(False)
     save_model(model,"final",params.output)
 
@@ -282,16 +298,20 @@ if __name__ == '__main__':
     #writer.close()
     
     # get the best models
-    model.load_state_dict(best_model_acc)
-    model=model.cpu()
-    save_model(model,"best_acc_cpu",params.output)
-    
-    model.load_state_dict(best_model_tpr)
-    model=model.cpu()
-    save_model(model,"best_tpr_cpu",params.output)
-    
-    model.load_state_dict(best_model_tnr)
-    model=model.cpu()
-    save_model(model,"best_tnr_cpu",params.output)
+    if False:
+        model.load_state_dict(best_model_acc)
+        model=model.cpu()
+        save_model(model,"best_acc_cpu",params.output)
+        
+        model.load_state_dict(best_model_tpr)
+        model=model.cpu()
+        save_model(model,"best_tpr_cpu",params.output)
+        
+        model.load_state_dict(best_model_tnr)
+        model=model.cpu()
+        save_model(model,"best_tnr_cpu",params.output)
 
+        model.load_state_dict(best_model_fpr)
+        model=model.cpu()
+        save_model(model,"best_fpr_cpu",params.output)
     

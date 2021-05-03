@@ -103,7 +103,7 @@ class QCDataset(Dataset):
     def n_subjects(self):
         return len(self.qc_subjects)
 
-    def load_qc_db(self, data_prefix, feat=3,training_path=True):
+    def load_qc_db(self, data_prefix, feat=3, training_path=True):
         # load training list
         samples = []
         status = 2

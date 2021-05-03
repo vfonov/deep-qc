@@ -5,7 +5,7 @@ require 'xlua'
 require 'paths'
 require 'nn'
 require 'image'
-require 'minc2_simple'
+-- require 'minc2_simple'
 
 torch.setdefaulttensortype('torch.FloatTensor')
 
@@ -108,7 +108,7 @@ else
     end
 end
 
-if opt.noref then
+if not opt.noref then
     data_in=torch.Tensor(     1, 6 , 224, 224 )
 else
     data_in=torch.Tensor(     1, 3 , 224, 224 )
