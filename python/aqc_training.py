@@ -20,7 +20,6 @@ from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
 
-
 def parse_options():
 
     parser = argparse.ArgumentParser(description='Train automated QC',
@@ -50,11 +49,15 @@ def parse_options():
     parser.add_argument("--pretrained",action="store_true",default=False,
                         help="Use ImageNet pretrained models") 
     parser.add_argument("--lr",type=float, default=0.0001,
-                        help="Learning rate") 
-
+                        help="Learning rate")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Seed for shuffling data")
+    parser.add_argument("--fold", type=int, default=0,
+                        help="CV fold")
+    parser.add_argument("--folds", type=int, default=0,
+                        help="CV total number of folds, 0 - disable CV")
 
     params = parser.parse_args()
-    
     
     return params
 
@@ -63,31 +66,20 @@ if __name__ == '__main__':
     data_prefix = "../data"
     use_ref = params.ref
     val_subjects = 200
-    db_name = 'qc_db.sqlite3'
-    qc_db = sqlite3.connect(data_prefix + os.sep + db_name)
-
-    # create table with random order if not exists
-    qc_db.executescript("""
-    create table IF NOT EXISTS all_subjects as SELECT distinct(subject) as subject from qc_all order BY RANDOM();
-    """)
-
-    # split data into testing and training,
-    # making sure we don't mix subjects
-    qc_db.executescript("""
-    ATTACH DATABASE ":memory:" AS mem;
-    create table mem.val_subjects  as SELECT subject FROM all_subjects WHERE subject IN (SELECT subject FROM all_subjects ORDER BY RANDOM() LIMIT {});
-    """.format(val_subjects))
-
-    #     create table mem.train_subjects as SELECT subject FROM mem.all_subjects WHERE subject not in (SELECT subject FROM mem.val_subjects );
-
-    train_dataset    = QCDataset(qc_db, data_prefix, use_ref=use_ref, validate=params.val, training_path=True)
-    validate_dataset = QCDataset(qc_db, data_prefix, use_ref=use_ref, validate=params.val, training_path=False)
-    print(train_dataset.validate)
     
-    print("Training {} samples {} unique subjects".format(len(train_dataset),train_dataset.n_subjects()))
-    print("Validation {} samples {} unique subjects".format(len(validate_dataset),validate_dataset.n_subjects()))
-    # TODO: -- preshuffle all samples 
-    # TODO: -- preshuffle all subjects
+    all_samples = load_full_db(data_prefix + os.sep + db_name, data_prefix, False)
+
+    training, validation, testing = split_dataset(all_samples, fold=params.fold, folds=params.folds, validation=val_subjects, 
+        shuffle=True, seed=params.seed)
+
+    train_dataset    = QCDataset(training, data_prefix, use_ref=use_ref)
+    validate_dataset = QCDataset(validation, data_prefix, use_ref=use_ref)
+    testing_dataset = QCDataset(testing, data_prefix, use_ref=use_ref)
+    
+    print("Training\t{} samples {} unique subjects".format(len(train_dataset),train_dataset.n_subjects()))
+    print("Validation\t{} samples {} unique subjects".format(len(validate_dataset),validate_dataset.n_subjects()))
+    print("Testing\t{} samples {} unique subjects".format(len(testing_dataset),testing_dataset.n_subjects()))
+
     dataset_size = len(train_dataset)
 
     training_dataloader = DataLoader(train_dataset, 
@@ -103,7 +95,7 @@ if __name__ == '__main__':
                           num_workers=params.workers,
                           drop_last=False)
 
-    model = get_qc_model(params,use_ref=use_ref,pretrained=params.pretrained)    
+    model = get_qc_model(params, use_ref=use_ref, pretrained=params.pretrained)    
 
 
     model     = model.cuda()
@@ -126,7 +118,6 @@ if __name__ == '__main__':
     best_acc = 0.0
     best_tnr = 0.0
     best_tpr = 0.0
-    best_fpr = 1.0
 
     validation_period = 200
 
@@ -226,11 +217,11 @@ if __name__ == '__main__':
                 else:
                     v_batch_tn = 0.0
 
-                val_running_loss += v_batch_loss
-                val_running_acc  += v_batch_acc
-                val_running_tnr  += v_batch_tn
-                val_running_tpr  += v_batch_tp
-                val_running_fpr  += v_batch_fp
+                val_running_loss = v_batch_loss
+                val_running_acc  = v_batch_acc
+                val_running_tnr  = v_batch_tn
+                val_running_tpr  = v_batch_tp
+                val_running_fpr  = v_batch_fp
 
                 val_ctr += 1
                 writer.add_scalars('{}/validation'.format(params.output),
@@ -251,12 +242,13 @@ if __name__ == '__main__':
         # aggregate epoch statistics           
         epoch_loss = running_loss / dataset_size
         epoch_acc  = running_acc / dataset_size
+        
         # TODO: perhaps this is not 
-        epoch_val_loss = val_running_loss / val_ctr
-        epoch_val_acc  = val_running_acc / val_ctr
-        epoch_val_tpr  = val_running_tpr / val_ctr
-        epoch_val_tnr  = val_running_tnr / val_ctr
-        epoch_val_fpr  = val_running_fpr / val_ctr
+        epoch_val_loss = val_running_loss 
+        epoch_val_acc  = val_running_acc 
+        epoch_val_tpr  = val_running_tpr
+        epoch_val_tnr  = val_running_tnr
+        epoch_val_fpr  = val_running_fpr
 
         writer.add_scalars('{}/validation_epoch'.format(params.output), 
                             {'loss': epoch_val_loss,

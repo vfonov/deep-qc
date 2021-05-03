@@ -4,12 +4,48 @@
 # @author Vladimir S. FONOV
 # @date 13/04/2018
 
-import sqlite3
 import os
+import collections
+
 from skimage import io, transform
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+QC_entry = collection.namedtuple( 
+    'QC_entry',['id', 'status', 'qc_files', 'variant', 'cohort', 'subject', 'visit' ] )
+
+def load_full_db(qc_db_path, data_prefix, validate_presence=False,feat=3):
+    """Load complete QC database into memory
+    """
+    import sqlite3
+
+    qc_db = sqlite3.connect(qc_db_path)
+    query = "select variant,cohort,subject,visit,path,xfm,pass from qc_all"
+
+    samples = []
+    subjects = []
+
+    for line in self.qc_db.execute(query):
+        variant, cohort, subject, visit, path, xfm, _pass = line
+
+        if _pass=='TRUE': status=1 
+        else: status=0 
+
+        _id='{}_{}_{}_{}'.format(variant, cohort, subject, visit)
+
+        qc_files=[]
+        for i in range(feat):
+            qc_file='{}/{}/qc/aqc_{}_{}_{}.jpg'.format(data_prefix, path, subject, visit, i)
+            
+            if validate_presence and not os.path.exists(qc_file):
+                print("Check:", qc_file)
+            else:
+                qc_files. append(qc_file)
+
+        if len(qc_files)==feat:
+            samples.append( QC_entry( _id, status, qc_files, variant, cohort, subject, visit ))
+    
+    return samples
 
 def load_qc_images(imgs):
     ret = []
@@ -58,12 +94,80 @@ def load_minc_images(path,winsorize_low=5,winsorize_high=95):
     return [torch.from_numpy(i).float().unsqueeze_(0) for i in input_images]
 
 
+def init_cv(dataset, fold=0, folds=8, validation=5, shuffle=False, seed=None):
+    """
+    Initialize Cross-Validation
+
+    returns three indexes
+    """
+    n_samples   = len(dataset)
+    whole_range = np.arange(n_samples)
+
+    if shuffle:
+        _state = None
+        if seed is not None:
+            _state = np.random.get_state()
+            np.random.seed(seed)
+
+        np.random.shuffle(whole_range)
+
+        if seed is not None:
+            np.random.set_state(_state)
+
+    if folds > 0:
+        training_samples = np.concatenate((whole_range[0:math.floor(fold * n_samples / folds)],
+                                           whole_range[math.floor((fold + 1) * n_samples / folds):n_samples]))
+        testing_samples = whole_range[math.floor(fold * n_samples / folds): math.floor((fold + 1) * n_samples / folds)]
+    else:
+        training_samples = whole_range
+        testing_samples = whole_range[0:0]
+    #
+    validation_samples = training_samples[0:validation]
+    training_samples = training_samples[validation:]
+
+    return training_samples, validation_samples, testing_samples
+
+def split_dataset(all_samples, fold=0, folds=8, validation=5, shuffle=False, seed=None):
+    """
+    Split samples, according to the subject field
+    into testing,training and validation subsets
+    """
+    ### extract subject list
+    subjects = set()
+    for i in all_samples:
+        subjects.add(i.subject)
+    
+    subjects=list(subjects)
+    # split into three
+    training_samples, validation_samples, testing_samples = init_cv(
+        subjects,fold=fold,folds=folds,validation=validation,shuffle=shuffle,seed=seed
+        )
+    #training_samples=set(training_samples)
+    validation_samples=set(validation_samples)
+    testing_samples=set(testing_samples)
+
+    # apply index
+    training = []
+    validation = []
+    testing = []
+
+    for i in all_samples:
+        if i.subject in testing_samples:
+            testing.append(i)
+        elif i.subject in validation_samples:
+            validation.append(i)
+        else:
+            training.append(i)
+    
+    return training,validation,testing
+
+
 class QCDataset(Dataset):
     """
     QC images dataset. Uses sqlite3 database to load data
     """
 
-    def __init__(self, db, data_prefix, use_ref=False, validate=False, training_path=True):
+    def __init__(self, dataset, data_prefix, use_ref=False):
         """
         Args:
             root_dir (string): Directory with all the data
@@ -71,19 +175,17 @@ class QCDataset(Dataset):
         """
         super(QCDataset, self).__init__()
         self.use_ref  = use_ref
-        self.validate = validate
-        self.training = training_path
+        self.qc_samples = dataset
         self.data_prefix = data_prefix
         #
-        self.qc_db = db
-        self.qc_samples, self.qc_subjects = self.load_qc_db(self.data_prefix, training_path=training_path)
+        self.qc_subjects = set(i.subject for i in self.qc_samples)
 
         if self.use_ref:
             # TODO: allow specify as parameter?
             self.ref_img = load_qc_images(
-                           [self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_0.jpg",
-                            self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_1.jpg",
-                            self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_2.jpg"])
+                           [ self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_0.jpg",
+                             self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_1.jpg",
+                             self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_2.jpg" ])
 
     def __len__(self):
         return len(self.qc_samples)
@@ -91,14 +193,14 @@ class QCDataset(Dataset):
     def __getitem__(self, idx):
         _s = self.qc_samples[idx]
         # load images     
-        _images = load_qc_images(_s[2] )
+        _images = load_qc_images( _s.qc_files )
 
         if self.use_ref:
-            _images = torch.cat( [ item for sublist in zip(_images,self.ref_img) for item in sublist ] )
+            _images = torch.cat( [ item for sublist in zip(_images, self.ref_img) for item in sublist ] )
         else:
             _images = torch.cat( _images )
-            
-        return {'image':_images, 'status':_s[1], 'id':_s[0]}
+        
+        return {'image':_images, 'status':_s[1], 'id':_s.id}
 
     def n_subjects(self):
         return len(self.qc_subjects)
@@ -118,8 +220,10 @@ class QCDataset(Dataset):
         for line in self.qc_db.execute(query):
             variant, cohort, subject, visit, path, xfm, _pass = line
             
-            if _pass=='TRUE': status=1 
-            else: status=0 
+            if _pass=='TRUE': 
+                status=1 
+            else: 
+                status=0 
             
             _id='%s_%s_%s_%s' % (variant, cohort, subject, visit)
             qc=[]
@@ -190,6 +294,7 @@ class MincVolumesDataset(Dataset):
             _images = torch.cat( [ item for sublist in zip(_images, self.ref_img) for item in sublist ] )
         else:
             _images = torch.cat( _images )
+
         return _images.unsqueeze(0), self.file_list[idx]
 
 
@@ -197,7 +302,7 @@ class MincVolumesDataset(Dataset):
 class QCImagesDataset(Dataset):
     """
     QC images dataset, loads images identified by prefix in csv file
-    For inference in batch mode
+    Used for inference in batch mode only
     Arguments:
         file_list - list of QC images prefixes files to load
         csv_file - name of csv file to load list from (first column should contain prefix )
