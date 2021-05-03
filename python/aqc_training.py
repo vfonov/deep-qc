@@ -49,6 +49,8 @@ def parse_options():
                     help="Network type",default='r18')
     parser.add_argument("--adam",action="store_true",default=False,
                         help="Use ADAM instead of SGD") 
+    parser.add_argument("--pretrained",action="store_true",default=False,
+                        help="Use ImageNet pretrained models") 
     parser.add_argument("--lr",type=float, default=0.001,
                         help="Learning rate") 
 
@@ -102,7 +104,7 @@ if __name__ == '__main__':
                           num_workers=params.workers,
                           drop_last=False)
 
-    model = get_qc_model(params,use_ref=use_ref,pretrained=False)    
+    model = get_qc_model(params,use_ref=use_ref,pretrained=params.pretrained)    
 
 
     model     = model.cuda()
@@ -158,8 +160,6 @@ if __name__ == '__main__':
             # if training
             loss.backward()
             optimizer.step()
-
-            
 
             batch_loss = loss.data.item() * inputs.size(0)
             batch_acc  = torch.sum(preds == labels.data).item()
