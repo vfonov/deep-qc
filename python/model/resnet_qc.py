@@ -242,6 +242,7 @@ class ResNetQC(nn.Module):
         # See note [TorchScript super()]
 
         # split feats into batches
+        # for core resnet based part
         x = x.view(-1, 2 if self.use_ref else 1 ,224,224)
 
         x = self.conv1(x)
