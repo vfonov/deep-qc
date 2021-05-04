@@ -336,6 +336,9 @@ if __name__ == '__main__':
                 testing_best_tnr = run_validation_testing_loop(testing_dataloader, model, details=True)
 
 
+    if not os.path.exists(params.output):
+        os.makedirs(params.output)
+
     log_path = os.path.join(params.output, 'log_{}_{}.json'.format(params.fold,params.folds))
 
     print("Saving log to {}".format(log_path))
