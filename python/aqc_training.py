@@ -9,6 +9,7 @@ import os
 import numpy as np
 import io
 import copy
+import json
 
 from aqc_data   import *
 from model.util import *
@@ -64,17 +65,23 @@ def parse_options():
 if __name__ == '__main__':
     params = parse_options()
     data_prefix = "../data"
+    db_name = "qc_db.sqlite3"
     use_ref = params.ref
     val_subjects = 200
     
     all_samples = load_full_db(data_prefix + os.sep + db_name, data_prefix, False)
+    print("All samples: {}".format(len(all_samples)))
 
     training, validation, testing = split_dataset(all_samples, fold=params.fold, folds=params.folds, validation=val_subjects, 
         shuffle=True, seed=params.seed)
 
+    print("Training\t {} ".format(len(training)))
+    print("Validation\t{} ".format(len(validation)))
+    print("Testing\t{} ".format(len(testing)))
+
     train_dataset    = QCDataset(training, data_prefix, use_ref=use_ref)
     validate_dataset = QCDataset(validation, data_prefix, use_ref=use_ref)
-    testing_dataset = QCDataset(testing, data_prefix, use_ref=use_ref)
+    testing_dataset  = QCDataset(testing, data_prefix, use_ref=use_ref)
     
     print("Training\t{} samples {} unique subjects".format(len(train_dataset),train_dataset.n_subjects()))
     print("Validation\t{} samples {} unique subjects".format(len(validate_dataset),validate_dataset.n_subjects()))
@@ -99,7 +106,7 @@ if __name__ == '__main__':
 
 
     model     = model.cuda()
-    criterion = nn.CrossEntropyLoss()
+    #criterion = nn.CrossEntropyLoss()
     if params.adam:
         # parameters from LUA version
         optimizer = optim.Adam(model.parameters(), 
@@ -118,8 +125,12 @@ if __name__ == '__main__':
     best_acc = 0.0
     best_tnr = 0.0
     best_tpr = 0.0
-
     validation_period = 200
+
+    training_log = []
+    validation_log = []
+    testing_log = []
+    testing_details = []
 
     for epoch in range(params.n_epochs):
         print('Epoch {}/{}'.format(epoch, params.n_epochs - 1))
@@ -138,8 +149,7 @@ if __name__ == '__main__':
         val_running_fpr  = 0.0
         val_running_tnr  = 0.0
 
-        val_ctr=0
-
+        model.train(True)
         for i_batch, sample_batched in enumerate(training_dataloader):
             inputs = sample_batched['image'].cuda()
             labels = sample_batched['status'].cuda()
@@ -149,8 +159,9 @@ if __name__ == '__main__':
 
             # forward
             outputs = model(inputs)
-            _, preds = torch.max(outputs.data, 1)
-            loss = criterion(outputs, labels)
+            with torch.no_grad():
+                _, preds = torch.max(outputs.data, 1)
+            loss = nn.functional.cross_entropy(outputs, labels)
 
             # if training
             loss.backward()
@@ -159,137 +170,101 @@ if __name__ == '__main__':
             batch_loss = loss.data.item() * inputs.size(0)
             batch_acc  = torch.sum(preds == labels.data).item()
 
-            # statistics
-            running_loss  += batch_loss
-            running_acc   += batch_acc
-
-            # run validation from time-to time 
-            if ( global_ctr % validation_period ) == 0:
-                # training stats
-                writer.add_scalars('{}/training'.format(params.output),
-                                   {'loss': batch_loss/inputs.size(0),
-                                    'acc':  batch_acc/inputs.size(0)},
-                                    global_ctr)
-                # 
-                model.train(False)  # Set model to evaluation mode
-
-                v_batch_loss  = 0.0
-                v_batch_acc   = 0.0
-
-                v_batch_tp    = 0.0
-                v_batch_tn    = 0.0
-                v_batch_ap    = 0.0
-                v_batch_an    = 0.0
-                v_batch_fp    = 0.0
-
-                for v_batch, v_sample_batched in enumerate(validation_dataloader):
-                    inputs = v_sample_batched['image' ].cuda()
-                    labels = v_sample_batched['status'].cuda()
-
-                    outputs = model(inputs)
-                    _, preds = torch.max(outputs.data, 1)
-                    loss = criterion(outputs, labels)
-
-                    v_batch_loss += float(loss) * inputs.size(0)
-                    v_batch_acc  += float(torch.sum(preds == labels.data))
-
-                    # calculating true positive and true negative
-                    v_batch_tp   += float(torch.sum( (preds == 1)*(labels.data==1)))
-                    v_batch_fp   += float(torch.sum( (preds == 1)*(labels.data==0)))
-                    v_batch_tn   += float(torch.sum( (preds == 0)*(labels.data==0)))
-
-                    v_batch_ap   += float(torch.sum( (labels.data == 1)))
-                    v_batch_an   += float(torch.sum( (labels.data == 0)))
-
-
-                # (?)
-                v_batch_loss /= len(validate_dataset)
-                v_batch_acc  /= len(validate_dataset)
-
-                if v_batch_ap>0:
-                    v_batch_tp  /= v_batch_ap
-                else:
-                    v_batch_tp = 0.0
-
-                if v_batch_an>0:
-                    v_batch_tn  /= v_batch_an
-                    v_batch_fp  /= v_batch_an
-                else:
-                    v_batch_tn = 0.0
-
-                val_running_loss = v_batch_loss
-                val_running_acc  = v_batch_acc
-                val_running_tnr  = v_batch_tn
-                val_running_tpr  = v_batch_tp
-                val_running_fpr  = v_batch_fp
-
-                val_ctr += 1
-                writer.add_scalars('{}/validation'.format(params.output),
-                                   {'loss': v_batch_loss ,
-                                    'acc':  v_batch_acc,
-                                    'tpr':  v_batch_tp,
-                                    'tnr':  v_batch_tn,
-                                    'fpr':  v_batch_fp },
-                                    global_ctr)
-
-                print("{} - {},{}".format(global_ctr,v_batch_loss,v_batch_acc))
-                model.train(True)
+            log={'loss': batch_loss/inputs.size(0),
+                 'acc':  batch_acc/inputs.size(0)}
+            # training stats
+            writer.add_scalars('{}/training'.format(params.output),
+                                log, global_ctr)
+            log['ctr']=global_ctr
+            training_log.append(log)
             global_ctr += 1
-        
+
+        model.train(False)  # Set model to evaluation mode
+        # run validation at the end of epoch
+        with torch.no_grad():
+            val_loss  = 0.0
+            val_acc   = 0.0
+
+            val_tp    = 0.0
+            val_tn    = 0.0
+            val_ap    = 0.0
+            val_an    = 0.0
+            val_fp    = 0.0
+
+            for v_batch, v_sample_batched in enumerate(validation_dataloader):
+                inputs = v_sample_batched['image' ].cuda()
+                labels = v_sample_batched['status'].cuda()
+
+                outputs=model(inputs)
+                loss = nn.functional.cross_entropy(outputs, labels)
+                outputs = nn.functional.softmax(outputs,1)
+                _, preds = torch.max(outputs, 1)
+
+                val_loss += float(loss) * inputs.size(0)
+                val_acc  += float(torch.sum(preds == labels))
+
+                # calculating true positive and true negative
+                val_tp   += float(torch.sum( (preds == 1)*(labels==1)))
+                val_fp   += float(torch.sum( (preds == 1)*(labels==0)))
+                val_tn   += float(torch.sum( (preds == 0)*(labels==0)))
+
+                val_ap   += float(torch.sum( (labels == 1)))
+                val_an   += float(torch.sum( (labels == 0)))
+
+            # (?)
+            val_loss /= len(validate_dataset)
+            val_acc  /= len(validate_dataset)
+
+            if val_ap>0:
+                val_tp  /= val_ap
+            else:
+                val_tp = 0.0
+
+            if val_an>0:
+                val_tn  /= val_an
+                val_fp  /= val_an
+            else:
+                val_tn = 0.0
+            
+            print("{} - {},{}".format(global_ctr, val_loss, val_acc))
+
+            log = {'loss': val_loss,
+                                'acc':  val_acc,
+                                'tpr':  val_tp,
+                                'tnr':  val_tn,
+                                'fpr':  val_fp
+                                }
+
+            writer.add_scalars('{}/validation_epoch'.format(params.output), 
+                                log,
+                                epoch)
+
+            log['ctr']   = global_ctr
+            log['epoch'] = epoch
+            validation_log.append(log)
+
+            print('Epoch: {} Validation Loss: {:.4f} Acc: {:.4f} TPR: {:.4f} TNR: {:.4f} FPR:{:.4f}'.\
+                    format(epoch, val_loss, val_acc, val_tp, val_tn,val_fp))
+                
         if not params.adam:
             scheduler.step()
-
-        # aggregate epoch statistics           
-        epoch_loss = running_loss / dataset_size
-        epoch_acc  = running_acc / dataset_size
         
-        # TODO: perhaps this is not 
-        epoch_val_loss = val_running_loss 
-        epoch_val_acc  = val_running_acc 
-        epoch_val_tpr  = val_running_tpr
-        epoch_val_tnr  = val_running_tnr
-        epoch_val_fpr  = val_running_fpr
-
-        writer.add_scalars('{}/validation_epoch'.format(params.output), 
-                            {'loss': epoch_val_loss,
-                             'acc':  epoch_val_acc,
-                             'tpr':  epoch_val_tpr,
-                             'tnr':  epoch_val_tnr,
-                             'fpr':  epoch_val_fpr
-                             },
-                            epoch)
-        
-        print('Epoch: {} Validation Loss: {:.4f} Acc: {:.4f} TPR: {:.4f} TNR: {:.4f} FPR:{:.4f}'.format(epoch, epoch_val_loss, epoch_val_acc, epoch_val_tpr, epoch_val_tnr,epoch_val_fpr))
-
-        if epoch_val_acc > best_acc:
-                best_acc = epoch_val_acc
+        if val_acc > best_acc:
+                best_acc = val_acc
                 best_model_acc = copy.deepcopy(model.state_dict())
-                model.train(False)
-                save_model(model,"best_acc",params.output)
+                save_model(model,"best_acc",params.output,fold=params.fold,folds=params.folds)
 
-        if epoch_val_tpr > best_tpr:
-                best_tpr = epoch_val_tpr
+        if val_tp > best_tpr:
+                best_tpr = val_tp
                 best_model_tpr = copy.deepcopy(model.state_dict())
-                model.train(False)
-                save_model(model,"best_tpr",params.output)
+                save_model(model,"best_tpr",params.output,fold=params.fold,folds=params.folds)
 
-        if epoch_val_tnr > best_tnr:
-                best_tnr = epoch_val_tnr
+        if val_tn > best_tnr:
+                best_tnr = val_tn
                 best_model_tnr = copy.deepcopy(model.state_dict())
-                model.train(False)
-                save_model(model,"best_tnr",params.output)
+                save_model(model,"best_tnr",params.output,fold=params.fold,folds=params.folds)
 
-        if epoch_val_fpr < best_fpr:
-                best_fpr = epoch_val_fpr
-                best_model_fpr = copy.deepcopy(model.state_dict())
-                model.train(False)
-                save_model(model,"best_fpr",params.output)
-
-    model.train(False)
-    save_model(model,"final",params.output)
-
-    #writer.export_scalars_to_json(params.output+os.sep+"./all_scalars.json")
-    #writer.close()
+    save_model(model,"final", params.output,fold=params.fold,folds=params.folds)
     
     # get the best models
     if False:
@@ -304,8 +279,99 @@ if __name__ == '__main__':
         model.load_state_dict(best_model_tnr)
         model=model.cpu()
         save_model(model,"best_tnr_cpu",params.output)
+    
+    if len(testing)>0:
+        testing_dataloader = DataLoader(testing_dataset, 
+                            batch_size=1,
+                            shuffle=False, 
+                            num_workers=params.workers,
+                            drop_last=False)
 
-        model.load_state_dict(best_model_fpr)
-        model=model.cpu()
-        save_model(model,"best_fpr_cpu",params.output)
+        with torch.no_grad():
+            val_loss  = 0.0
+            val_acc   = 0.0
+
+            val_tp    = 0.0
+            val_tn    = 0.0
+            val_ap    = 0.0
+            val_an    = 0.0
+            val_fp    = 0.0
+
+            for v_batch, v_sample_batched in enumerate(testing_dataloader):
+                inputs = v_sample_batched['image' ].cuda()
+                labels = v_sample_batched['status'].cuda()
+
+                outputs = model(inputs)
+                loss = nn.functional.cross_entropy(outputs, labels)
+                outputs = nn.functional.softmax(outputs,1)
+                _, preds = torch.max(outputs, 1)
+
+                testing_details.append(
+                    {
+                        'id':    v_sample_batched['id'][0],
+                        'label': int(labels[0]),
+                        'raw' :  float(outputs[0,1]),
+                        'pred':  int(preds[0])
+                    }
+                )
+
+                val_loss += float(loss) * inputs.size(0)
+                val_acc  += float(torch.sum(preds == labels))
+
+                # calculating true positive and true negative
+                val_tp   += float(torch.sum( (preds == 1)*(labels==1)))
+                val_fp   += float(torch.sum( (preds == 1)*(labels==0)))
+                val_tn   += float(torch.sum( (preds == 0)*(labels==0)))
+
+                val_ap   += float(torch.sum( (labels == 1)))
+                val_an   += float(torch.sum( (labels == 0)))
+
+            # (?)
+            val_loss /= len(testing_dataset)
+            val_acc  /= len(testing_dataset)
+
+            if val_ap>0:
+                val_tp  /= val_ap
+            else:
+                val_tp = 0.0
+
+            if val_an>0:
+                val_tn  /= val_an
+                val_fp  /= val_an
+            else:
+                val_tn = 0.0
+            
+            print("{} - {},{}".format(global_ctr, val_loss, val_acc))
+
+            log = {'loss':  val_loss,
+                    'acc':  val_acc,
+                    'tpr':  val_tp,
+                    'tnr':  val_tn,
+                    'fpr':  val_fp
+                    }
+
+            testing_log.append(log)
+
+            print('Testing Loss: {:.4f} Acc: {:.4f} TPR: {:.4f} TNR: {:.4f} FPR:{:.4f}'.\
+                    format(val_loss, val_acc, val_tp, val_tn, val_fp))
+
+    log_path = os.path.join(params.output, 'log_{}_{}.json'.format(params.fold,params.folds))
+    print("Saving log to {}".format(log_path))
+    with open(log_path,'w') as f:
+        json.dump(
+            {
+                'folds': params.folds,
+                'fold': params.fold,
+                'model': params.net,
+                'ref': params.ref,
+                'batch_size': params.batch_size,
+                'n_epochs': params.n_epochs,
+                'training':training_log,
+                'validation': validation_log,
+                'testing': testing_log,
+                'testing_details': testing_details
+            }, f  )
+        
+
+
     

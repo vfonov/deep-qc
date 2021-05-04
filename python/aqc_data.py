@@ -8,10 +8,14 @@ import os
 import collections
 
 from skimage import io, transform
+
 import torch
+import numpy as np
+import math
+
 from torch.utils.data import Dataset, DataLoader
 
-QC_entry = collection.namedtuple( 
+QC_entry = collections.namedtuple( 
     'QC_entry',['id', 'status', 'qc_files', 'variant', 'cohort', 'subject', 'visit' ] )
 
 def load_full_db(qc_db_path, data_prefix, validate_presence=False,feat=3):
@@ -19,33 +23,33 @@ def load_full_db(qc_db_path, data_prefix, validate_presence=False,feat=3):
     """
     import sqlite3
 
-    qc_db = sqlite3.connect(qc_db_path)
-    query = "select variant,cohort,subject,visit,path,xfm,pass from qc_all"
+    with sqlite3.connect(qc_db_path) as qc_db:
+        query = "select variant,cohort,subject,visit,path,xfm,pass from qc_all"
 
-    samples = []
-    subjects = []
+        samples = []
+        subjects = []
 
-    for line in self.qc_db.execute(query):
-        variant, cohort, subject, visit, path, xfm, _pass = line
+        for line in qc_db.execute(query):
+            variant, cohort, subject, visit, path, xfm, _pass = line
 
-        if _pass=='TRUE': status=1 
-        else: status=0 
+            if _pass=='TRUE': status=1 
+            else: status=0 
 
-        _id='{}_{}_{}_{}'.format(variant, cohort, subject, visit)
+            _id='{}_{}_{}_{}'.format(variant, cohort, subject, visit)
 
-        qc_files=[]
-        for i in range(feat):
-            qc_file='{}/{}/qc/aqc_{}_{}_{}.jpg'.format(data_prefix, path, subject, visit, i)
-            
-            if validate_presence and not os.path.exists(qc_file):
-                print("Check:", qc_file)
-            else:
-                qc_files. append(qc_file)
+            qc_files=[]
+            for i in range(feat):
+                qc_file='{}/{}/qc/aqc_{}_{}_{}.jpg'.format(data_prefix, path, subject, visit, i)
+                
+                if validate_presence and not os.path.exists(qc_file):
+                    print("Check:", qc_file)
+                else:
+                    qc_files. append(qc_file)
 
-        if len(qc_files)==feat:
-            samples.append( QC_entry( _id, status, qc_files, variant, cohort, subject, visit ))
-    
-    return samples
+            if len(qc_files)==feat:
+                samples.append( QC_entry( _id, status, qc_files, variant, cohort, subject, visit ))
+        
+        return samples
 
 def load_qc_images(imgs):
     ret = []
@@ -125,7 +129,9 @@ def init_cv(dataset, fold=0, folds=8, validation=5, shuffle=False, seed=None):
     validation_samples = training_samples[0:validation]
     training_samples = training_samples[validation:]
 
-    return training_samples, validation_samples, testing_samples
+    return [dataset[i] for i in training_samples], \
+           [dataset[i] for i in validation_samples], \
+           [dataset[i] for i in testing_samples]
 
 def split_dataset(all_samples, fold=0, folds=8, validation=5, shuffle=False, seed=None):
     """
@@ -136,11 +142,10 @@ def split_dataset(all_samples, fold=0, folds=8, validation=5, shuffle=False, see
     subjects = set()
     for i in all_samples:
         subjects.add(i.subject)
-    
     subjects=list(subjects)
     # split into three
     training_samples, validation_samples, testing_samples = init_cv(
-        subjects,fold=fold,folds=folds,validation=validation,shuffle=shuffle,seed=seed
+        subjects, fold=fold,folds=folds, validation=validation, shuffle=shuffle,seed=seed
         )
     #training_samples=set(training_samples)
     validation_samples=set(validation_samples)
@@ -159,7 +164,7 @@ def split_dataset(all_samples, fold=0, folds=8, validation=5, shuffle=False, see
         else:
             training.append(i)
     
-    return training,validation,testing
+    return training, validation, testing
 
 
 class QCDataset(Dataset):

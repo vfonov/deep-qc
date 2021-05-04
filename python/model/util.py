@@ -13,14 +13,18 @@ def load_model(model, to_load):
     #print('Loading the model from {} ...' .format( to_load))
     model.load_state_dict( torch.load(to_load) )
 
-def save_model(model, name, base):
+def save_model(model, name, base,fold=0,folds=0):
     """
     Save the model.
     """
     if not os.path.exists(base):
         os.makedirs(base)
     
-    path = os.path.join(base, '{}.pth'.format( name) )
+    if folds==0:
+        path = os.path.join(base, '{}.pth'.format( name) )
+    else:
+        path = os.path.join(base, '{}_{}_{}.pth'.format( name,fold,folds) )
+    
     print('Saving the model to {} ...' .format( path))
     torch.save(model.state_dict(), path)
 
