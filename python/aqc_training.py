@@ -344,7 +344,8 @@ if __name__ == '__main__':
 
                 'training':training_log,
                 'validation': validation_log,
-
+                
+                'testing_final':    testing_final,
                 'testing_best_acc': testing_best_acc,
                 'testing_best_auc': testing_best_auc,
                 'testing_best_tpr': testing_best_tpr,
