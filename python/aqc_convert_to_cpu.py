@@ -29,8 +29,13 @@ def parse_options():
                         help="Load pretrained model (mondatory)")
     parser.add_argument("save", type=str, default=None,
                         help="Save pretrained model (mondatory)")
-    parser.add_argument("--net", choices=['r18', 'r34', 'r50','r101','r152','sq101'],
+    parser.add_argument("--net", choices=['r18', 'r34', 'r50','r101','r152',
+                                          'sq101',
+                                          'x50', 'x101',
+                                          'wr50','wr101'],
                     help="Network type",default='r18')
+    parser.add_argument("--ref",action="store_true",default=False,
+                        help="Use reference images")
 
     params = parser.parse_args()
     
@@ -39,16 +44,17 @@ def parse_options():
 
 if __name__ == '__main__':
     params = parse_options()
-    use_ref = False
-    #data_prefix="../data"
+
     if params.load is None or params.save is None:
         print("need to provide pre-trained model and output!")
         exit(1)
     
-    model = get_qc_model(params,use_ref=use_ref)
+    model = get_qc_model(params, use_ref=params.ref)
     model.train(False)
     model = model.cpu()
-    torch.save(model, params.save)
+
+    print('Saving the model to {} ...' .format( params.save))
+    torch.save(model.state_dict(), path)
 
 
 

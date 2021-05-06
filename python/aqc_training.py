@@ -118,6 +118,10 @@ def parse_options():
                         help="Load pretrained model")
     parser.add_argument("--val",action="store_true",default=False,
                         help="Validate that all files are there") 
+    parser.add_argument("--save_final",action="store_true",default=False,
+                        help="Save final model") 
+    parser.add_argument("--save_best",action="store_true",default=False,
+                        help="Save final best models") 
     parser.add_argument("--net", choices=['r18', 'r34', 'r50','r101','r152',
                                           'sq101',
                                           'x50', 'x101',
@@ -135,6 +139,8 @@ def parse_options():
                         help="CV fold")
     parser.add_argument("--folds", type=int, default=0,
                         help="CV total number of folds, 0 - disable CV")
+    parser.add_argument("--validation", type=int, default=200,
+                        help="Number of unique subjects used for validation")
 
     params = parser.parse_args()
     
@@ -144,18 +150,18 @@ if __name__ == '__main__':
     params = parse_options()
     data_prefix = "../data"
     db_name = "qc_db.sqlite3"
-    use_ref = params.ref
-    val_subjects = 200
+    params.ref = params.ref
     
     all_samples = load_full_db(data_prefix + os.sep + db_name, data_prefix, False)
     print("All samples: {}".format(len(all_samples)))
 
-    training, validation, testing = split_dataset(all_samples, fold=params.fold, folds=params.folds, validation=val_subjects, 
+    training, validation, testing = split_dataset(all_samples, fold=params.fold, 
+        folds=params.folds, validation=params.validation, 
         shuffle=True, seed=params.seed)
 
-    train_dataset    = QCDataset(training, data_prefix, use_ref=use_ref)
-    validate_dataset = QCDataset(validation, data_prefix, use_ref=use_ref)
-    testing_dataset  = QCDataset(testing, data_prefix, use_ref=use_ref)
+    train_dataset    = QCDataset(training, data_prefix,   use_ref=params.ref)
+    validate_dataset = QCDataset(validation, data_prefix, use_ref=params.ref)
+    testing_dataset  = QCDataset(testing, data_prefix,    use_ref=params.ref)
     
     print("Training    {} samples, {} unique subjects".format(len(train_dataset),train_dataset.n_subjects()))
     print("Validation  {} samples, {} unique subjects".format(len(validate_dataset),validate_dataset.n_subjects()))
@@ -174,9 +180,9 @@ if __name__ == '__main__':
                           num_workers=params.workers,
                           drop_last=False)
 
-    model = get_qc_model(params, use_ref=use_ref, pretrained=params.pretrained)    
+    model = get_qc_model(params, use_ref=params.ref, pretrained=params.pretrained)    
 
-    model     = model.cuda()
+    model = model.cuda()
     #criterion = nn.CrossEntropyLoss()
     if params.adam:
         # parameters from LUA version
@@ -279,21 +285,23 @@ if __name__ == '__main__':
             print('Epoch: {} no validation'.format(epoch))
 
 
-    final_model = copy.deepcopy(model.state_dict())
-    save_model(model,"final", params.output,fold=params.fold,folds=params.folds)
 
-    if len(validation)>0:
+    final_model = copy.deepcopy(model.state_dict())
+    if params.save_final:
+        save_model(model,"final", params.output,fold=params.fold,folds=params.folds)
+
+    if len(validation)>0 and params.save_best:
         model.load_state_dict(best_model_acc)
-        save_model(model,"best_acc",params.output)
+        save_model(model,"best_acc",params.output,fold=params.fold,folds=params.folds)
         
         model.load_state_dict(best_model_tpr)
-        save_model(model,"best_tpr",params.output)
+        save_model(model,"best_tpr",params.output,fold=params.fold,folds=params.folds)
             
         model.load_state_dict(best_model_tnr)
-        save_model(model,"best_tnr",params.output)
+        save_model(model,"best_tnr",params.output,fold=params.fold,folds=params.folds)
         
         model.load_state_dict(best_model_auc)
-        save_model(model,"best_auc",params.output)
+        save_model(model,"best_auc",params.output,fold=params.fold,folds=params.folds)
 
     testing_final={}
     testing_best_acc={}
@@ -327,6 +335,9 @@ if __name__ == '__main__':
                 model.load_state_dict(best_model_tnr)
                 testing_best_tnr = run_validation_testing_loop(testing_dataloader, model, details=True)
 
+
+    if not os.path.exists(params.output):
+        os.makedirs(params.output)
 
     log_path = os.path.join(params.output, 'log_{}_{}.json'.format(params.fold,params.folds))
 
