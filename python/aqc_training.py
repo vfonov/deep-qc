@@ -152,20 +152,28 @@ if __name__ == '__main__':
     db_name = "qc_db.sqlite3"
     params.ref = params.ref
     
-    all_samples = load_full_db(data_prefix + os.sep + db_name, data_prefix, False)
-    print("All samples: {}".format(len(all_samples)))
+    all_samples_main = load_full_db(data_prefix + os.sep + db_name, 
+                   data_prefix, False, table="qc_all")
+    all_samples_aug = load_full_db(data_prefix + os.sep + db_name, 
+                   data_prefix, False, table="qc_all_aug")
 
-    training, validation, testing = split_dataset(all_samples, fold=params.fold, 
-        folds=params.folds, validation=params.validation, 
-        shuffle=True, seed=params.seed)
+    print("Main samples: {}".format(len(all_samples_main)))
+    print("Aug  samples: {}".format(len(all_samples_aug)))
+
+    training, validation, testing = split_dataset(
+        all_samples_main, fold=params.fold, 
+        folds=params.folds, 
+        validation=params.validation, 
+        shuffle=True, seed=params.seed, 
+        sec_samples=all_samples_aug )
 
     train_dataset    = QCDataset(training, data_prefix,   use_ref=params.ref)
     validate_dataset = QCDataset(validation, data_prefix, use_ref=params.ref)
     testing_dataset  = QCDataset(testing, data_prefix,    use_ref=params.ref)
     
-    print("Training    {} samples, {} unique subjects".format(len(train_dataset),train_dataset.n_subjects()))
-    print("Validation  {} samples, {} unique subjects".format(len(validate_dataset),validate_dataset.n_subjects()))
-    print("Testing     {} samples, {} unique subjects".format(len(testing_dataset),testing_dataset.n_subjects()))
+    print("Training   {} samples, {} unique subjects".format(len(train_dataset),train_dataset.n_subjects()))
+    print("Validation {} samples, {} unique subjects".format(len(validate_dataset),validate_dataset.n_subjects()))
+    print("Testing    {} samples, {} unique subjects".format(len(testing_dataset),testing_dataset.n_subjects()))
 
     training_dataloader = DataLoader(train_dataset, 
                           batch_size=params.batch_size,

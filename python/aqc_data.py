@@ -18,13 +18,14 @@ from torch.utils.data import Dataset, DataLoader
 QC_entry = collections.namedtuple( 
     'QC_entry',['id', 'status', 'qc_files', 'variant', 'cohort', 'subject', 'visit' ] )
 
-def load_full_db(qc_db_path, data_prefix, validate_presence=False,feat=3):
+
+def load_full_db(qc_db_path, data_prefix, validate_presence=False, feat=3, table="qc_all"):
     """Load complete QC database into memory
     """
     import sqlite3
 
     with sqlite3.connect(qc_db_path) as qc_db:
-        query = "select variant,cohort,subject,visit,path,xfm,pass from qc_all"
+        query = f"select variant,cohort,subject,visit,path,xfm,pass from {table}"
 
         samples = []
         subjects = []
@@ -50,6 +51,7 @@ def load_full_db(qc_db_path, data_prefix, validate_presence=False,feat=3):
                 samples.append( QC_entry( _id, status, qc_files, variant, cohort, subject, visit ))
         
         return samples
+
 
 def load_qc_images(imgs):
     ret = []
@@ -133,21 +135,27 @@ def init_cv(dataset, fold=0, folds=8, validation=5, shuffle=False, seed=None):
            [dataset[i] for i in validation_samples], \
            [dataset[i] for i in testing_samples]
 
-def split_dataset(all_samples, fold=0, folds=8, validation=5, shuffle=False, seed=None):
+def split_dataset(all_samples, fold=0, folds=8, validation=5, 
+    shuffle=False, seed=None, sec_samples=None):
     """
     Split samples, according to the subject field
     into testing,training and validation subsets
+    sec_samples will be used for training subset, if provided
     """
     ### extract subject list
     subjects = set()
     for i in all_samples:
         subjects.add(i.subject)
+    if sec_samples is not None:
+        for i in sec_samples:
+            subjects.add(i.subject)
+    
     subjects=list(subjects)
     # split into three
     training_samples, validation_samples, testing_samples = init_cv(
         subjects, fold=fold,folds=folds, validation=validation, shuffle=shuffle,seed=seed
         )
-    #training_samples=set(training_samples)
+    training_samples=set(training_samples)
     validation_samples=set(validation_samples)
     testing_samples=set(testing_samples)
 
@@ -161,8 +169,15 @@ def split_dataset(all_samples, fold=0, folds=8, validation=5, shuffle=False, see
             testing.append(i)
         elif i.subject in validation_samples:
             validation.append(i)
-        else:
-            training.append(i)
+    
+    if sec_samples is not None:
+        for i in sec_samples:
+           if i.subject in training_samples:
+               training.append(i)
+    else:
+        for i in all_samples:
+           if i.subject in training_samples:
+                training.append(i)
     
     return training, validation, testing
 
