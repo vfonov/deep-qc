@@ -188,7 +188,7 @@ if __name__ == '__main__':
                           num_workers=params.workers,
                           drop_last=False)
 
-    model = get_qc_model(params, use_ref=params.ref, pretrained=params.pretrained)    
+    model = get_qc_model(params, use_ref=params.ref, pretrained=params.pretrained)
 
     model = model.cuda()
     #criterion = nn.CrossEntropyLoss()
@@ -210,9 +210,13 @@ if __name__ == '__main__':
     best_model_auc = copy.deepcopy(model.state_dict())
 
     best_acc = 0.0
+    best_acc_epoch = -1
     best_tnr = 0.0
+    best_tnr_epoch = -1
     best_tpr = 0.0
+    best_tpr_epoch = -1
     best_auc = 0.0
+    best_auc_epoch = -1
 
     training_log = []
     validation_log = []
@@ -265,18 +269,22 @@ if __name__ == '__main__':
             
             if val['acc'] > best_acc:
                     best_acc = val['acc']
+                    best_acc_epoch = epoch
                     best_model_acc = copy.deepcopy(model.state_dict())
 
             if val['tpr'] > best_tpr:
                     best_tpr = val['tpr']
+                    best_tpr_epoch = epoch
                     best_model_tpr = copy.deepcopy(model.state_dict())
 
             if val['tnr'] > best_tnr:
                     best_tnr = val['tnr']
+                    best_tnr_epoch = epoch
                     best_model_tnr = copy.deepcopy(model.state_dict())
 
             if val['auc'] > best_auc:
                     best_auc = val['auc']
+                    best_auc_epoch = epoch
                     best_model_auc = copy.deepcopy(model.state_dict())
             
             writer.add_scalars('{}/validation_epoch'.format(params.output), 
@@ -296,20 +304,20 @@ if __name__ == '__main__':
 
     final_model = copy.deepcopy(model.state_dict())
     if params.save_final:
-        save_model(model,"final", params.output,fold=params.fold,folds=params.folds)
+        save_model(model,"final", params.output, fold=params.fold, folds=params.folds)
 
     if len(validation)>0 and params.save_best:
         model.load_state_dict(best_model_acc)
-        save_model(model,"best_acc",params.output,fold=params.fold,folds=params.folds)
+        save_model(model,"best_acc", params.output, fold=params.fold, folds=params.folds)
         
         model.load_state_dict(best_model_tpr)
-        save_model(model,"best_tpr",params.output,fold=params.fold,folds=params.folds)
+        save_model(model,"best_tpr", params.output, fold=params.fold, folds=params.folds)
             
         model.load_state_dict(best_model_tnr)
-        save_model(model,"best_tnr",params.output,fold=params.fold,folds=params.folds)
+        save_model(model,"best_tnr", params.output, fold=params.fold, folds=params.folds)
         
         model.load_state_dict(best_model_auc)
-        save_model(model,"best_auc",params.output,fold=params.fold,folds=params.folds)
+        save_model(model,"best_auc", params.output, fold=params.fold, folds=params.folds)
 
     testing_final={}
     testing_best_acc={}
@@ -360,7 +368,18 @@ if __name__ == '__main__':
                 'ref': params.ref,
                 'batch_size': params.batch_size,
                 'n_epochs': params.n_epochs,
+                'pretrained': params.pretrained,
+                'adam': params.adam,
+                'lr': params.lr,
 
+                'best_acc':best_acc, 
+                'best_acc_epoch':best_acc_epoch, 
+                'best_tnr':best_tnr, 
+                'best_tnr_epoch':best_tnr_epoch, 
+                'best_tpr':best_tpr, 
+                'best_tpr_epoch':best_tpr_epoch, 
+                'best_auc':best_auc, 
+                'best_auc_epoch':best_auc_epoch, 
                 'training':training_log,
                 'validation': validation_log,
                 
