@@ -213,12 +213,19 @@ if __name__ == '__main__':
 
     best_acc = 0.0
     best_acc_epoch = -1
+    best_acc_ctr = -1
+
     best_tnr = 0.0
     best_tnr_epoch = -1
+    best_tnr_ctr = -1
+
     best_tpr = 0.0
     best_tpr_epoch = -1
+    best_tpr_ctr = -1
+
     best_auc = 0.0
     best_auc_epoch = -1
+    best_auc_ctr = -1
 
     training_log = []
     validation_log = []
@@ -287,9 +294,9 @@ if __name__ == '__main__':
                         best_auc_ctr = global_ctr
                         best_model_auc = copy.deepcopy(model.state_dict())
                 
-                writer.add_scalars('{}/validation_epoch'.format(params.output), 
+                writer.add_scalars('{}/validation'.format(params.output), 
                                     val,
-                                    epoch)
+                                    global_ctr)
 
                 val['epoch']=epoch
                 val['ctr']=global_ctr
@@ -418,12 +425,20 @@ if __name__ == '__main__':
 
                 'best_acc':best_acc, 
                 'best_acc_epoch':best_acc_epoch, 
+                'best_acc_ctr':best_acc_ctr, 
+
                 'best_tnr':best_tnr, 
                 'best_tnr_epoch':best_tnr_epoch, 
+                'best_tnr_ctr':best_tnr_ctr, 
+
                 'best_tpr':best_tpr, 
                 'best_tpr_epoch':best_tpr_epoch, 
+                'best_tpr_ctr':best_tpr_ctr, 
+
                 'best_auc':best_auc, 
                 'best_auc_epoch':best_auc_epoch, 
+                'best_auc_ctr':best_auc_ctr, 
+
                 'training':training_log,
                 'validation': validation_log,
                 
