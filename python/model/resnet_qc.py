@@ -135,7 +135,7 @@ class ResNetQC(nn.Module):
         block: Type[Union[BasicBlock, Bottleneck]],
         layers: List[int],
         num_classes: int = 2,
-	use_ref:bool = False,
+	    use_ref:bool = False,
         zero_init_residual: bool = False,
         groups: int = 1,
         width_per_group: int = 64,

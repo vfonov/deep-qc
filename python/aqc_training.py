@@ -141,6 +141,8 @@ def parse_options():
                         help="CV total number of folds, 0 - disable CV")
     parser.add_argument("--validation", type=int, default=200,
                         help="Number of unique subjects used for validation")
+    parser.add_argument("--freq", type=int, default=None,
+                        help="Perform frequent validations, every N minibatches (for debugging)")
 
     params = parser.parse_args()
     
@@ -211,12 +213,19 @@ if __name__ == '__main__':
 
     best_acc = 0.0
     best_acc_epoch = -1
+    best_acc_ctr = -1
+
     best_tnr = 0.0
     best_tnr_epoch = -1
+    best_tnr_ctr = -1
+
     best_tpr = 0.0
     best_tpr_epoch = -1
+    best_tpr_ctr = -1
+
     best_auc = 0.0
     best_auc_epoch = -1
+    best_auc_ctr = -1
 
     training_log = []
     validation_log = []
@@ -254,6 +263,44 @@ if __name__ == '__main__':
                                 log, global_ctr)
             log['ctr']=global_ctr
             log['epoch']=epoch
+            
+            if params.freq is not None and \
+                (global_ctr%params.freq)==0 and \
+                len(validation)>0:
+                val_info = run_validation_testing_loop(validation_dataloader,model,details=False)
+                val = val_info['summary']
+                
+                if val['acc'] > best_acc:
+                        best_acc = val['acc']
+                        best_acc_epoch = epoch
+                        best_acc_ctr = global_ctr
+                        best_model_acc = copy.deepcopy(model.state_dict())
+
+                if val['tpr'] > best_tpr:
+                        best_tpr = val['tpr']
+                        best_tpr_epoch = epoch
+                        best_tpr_ctr = global_ctr
+                        best_model_tpr = copy.deepcopy(model.state_dict())
+
+                if val['tnr'] > best_tnr:
+                        best_tnr = val['tnr']
+                        best_tnr_epoch = epoch
+                        best_tnr_ctr = global_ctr
+                        best_model_tnr = copy.deepcopy(model.state_dict())
+
+                if val['auc'] > best_auc:
+                        best_auc = val['auc']
+                        best_auc_epoch = epoch
+                        best_auc_ctr = global_ctr
+                        best_model_auc = copy.deepcopy(model.state_dict())
+                
+                writer.add_scalars('{}/validation'.format(params.output), 
+                                    val,
+                                    global_ctr)
+
+                val['epoch']=epoch
+                val['ctr']=global_ctr
+                validation_log.append(val)
 
             training_log.append(log)
             global_ctr += 1
@@ -262,7 +309,7 @@ if __name__ == '__main__':
         # run validation at the end of epoch
         if len(validation)>0:
             val_info = run_validation_testing_loop(validation_dataloader,model,details=False)
-            val=val_info['summary']
+            val = val_info['summary']
 
             if not params.adam:
                 scheduler.step()
@@ -270,21 +317,25 @@ if __name__ == '__main__':
             if val['acc'] > best_acc:
                     best_acc = val['acc']
                     best_acc_epoch = epoch
+                    best_acc_ctr = global_ctr
                     best_model_acc = copy.deepcopy(model.state_dict())
 
             if val['tpr'] > best_tpr:
                     best_tpr = val['tpr']
                     best_tpr_epoch = epoch
+                    best_tpr_ctr = global_ctr
                     best_model_tpr = copy.deepcopy(model.state_dict())
 
             if val['tnr'] > best_tnr:
                     best_tnr = val['tnr']
                     best_tnr_epoch = epoch
+                    best_tnr_ctr = global_ctr
                     best_model_tnr = copy.deepcopy(model.state_dict())
 
             if val['auc'] > best_auc:
                     best_auc = val['auc']
                     best_auc_epoch = epoch
+                    best_auc_ctr = global_ctr
                     best_model_auc = copy.deepcopy(model.state_dict())
             
             writer.add_scalars('{}/validation_epoch'.format(params.output), 
@@ -374,12 +425,20 @@ if __name__ == '__main__':
 
                 'best_acc':best_acc, 
                 'best_acc_epoch':best_acc_epoch, 
+                'best_acc_ctr':best_acc_ctr, 
+
                 'best_tnr':best_tnr, 
                 'best_tnr_epoch':best_tnr_epoch, 
+                'best_tnr_ctr':best_tnr_ctr, 
+
                 'best_tpr':best_tpr, 
                 'best_tpr_epoch':best_tpr_epoch, 
+                'best_tpr_ctr':best_tpr_ctr, 
+
                 'best_auc':best_auc, 
                 'best_auc_epoch':best_auc_epoch, 
+                'best_auc_ctr':best_auc_ctr, 
+
                 'training':training_log,
                 'validation': validation_log,
                 
