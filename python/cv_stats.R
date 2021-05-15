@@ -6,7 +6,7 @@ cv<-data.frame()
 # all these are pretrained
 for(lr_ in c('0.001', '0.0001', '0.00001')) {
     pfx=paste0('lr_',lr_,'_pre/')
-    for(v in c('r18')){
+    for(v in c('r18','r34')){
         for(r in c('_ref','')) {
             for(f in seq(0,7)) {
                 fn=paste0(pfx,'model_',v,r,'/log_',f,'_8.json')
@@ -19,7 +19,7 @@ for(lr_ in c('0.001', '0.0001', '0.00001')) {
                     as.data.frame(rrr$testing_best_auc$summary)%>%mutate(select_kind='auc'),
                     as.data.frame(rrr$testing_best_tpr$summary)%>%mutate(select_kind='tpr'),
                     as.data.frame(rrr$testing_best_tnr$summary)%>%mutate(select_kind='tnr')) %>%
-                    mutate(fold=f,ref=(r=="_ref"),model=v,lr=lr_)
+                    mutate(fold=f,ref=(r=="_ref"),model=v,lr=lr_, pre=T)
                 cv<-bind_rows(cv,fold)
                 }
             }
@@ -27,10 +27,14 @@ for(lr_ in c('0.001', '0.0001', '0.00001')) {
     }
 }
 
-# all these are pretrained
-cv<-cv %>% mutate(pre=T, select_kind=factor(select_kind, levels=c('final', 'auc', 'acc', 'tpr', 'tnr') ),lr=as.factor(lr))
+# HACK: all these are pretrained for now
 
-ccv<-cv %>% gather(`acc`,`tpr`,`tnr`,`auc`, key='measure', value='score')
+
+cv_<-cv%>%filter(model=='r18')
+# all these are pretrained
+cv_<-cv_ %>% mutate( select_kind=factor(select_kind, levels=c('final', 'auc', 'acc', 'tpr', 'tnr') ),lr=as.factor(lr))
+
+ccv<-cv_ %>% gather(`acc`,`tpr`,`tnr`,`auc`, key='measure', value='score')
 tccv<-ccv %>% group_by(measure, model, ref, select_kind, pre, lr) %>% 
   summarize( score=median(score), score_lab=signif(score,4)) %>%ungroup()
 
@@ -42,14 +46,52 @@ tccv<-tccv %>% mutate( highlite=(score==best_tnr)&(measure=='tnr') )
 
 #     geom_hline(data=tccv,aes(x=measure,yintercept=score))+
 
-
-png("DARQ_CV_performance_10epochs_resnet18.png", width=2000, height=2000)
+png("DARQ_CV_performance_10epochs_r18.png", width=2000, height=2000)
 
 #    theme(axis.text.x=element_text(angle=45,vjust=0.3))+
 ggplot(ccv,aes(y=score,x=select_kind))+
     theme_bw(base_size = 28)+
     geom_boxplot()+
-    facet_wrap(ref~lr+measure, labeller='label_both',ncol=4)+
+    facet_wrap(ref~lr+measure, labeller='label_both',ncol=8)+
     geom_text(data=tccv, aes(label=score_lab, x=select_kind, y=score,color=highlite),show.legend = F,size=6,nudge_y=0.03)+
     scale_colour_manual(labels=c(F,T),values=c('black','red'))+
-    ggtitle('Model: Resnet-18 pretrained on ImageNet with and without reference')
+    ggtitle('DARQ ResNet18 pretrained on ImageNet with and without reference, all measurements')
+
+
+# focus only on TNR
+ccv<-cv %>% gather(`acc`,`tpr`,`tnr`,`auc`, key='measure', value='score')
+
+ccv<-ccv %>% filter(measure=='tnr')
+tccv<-ccv %>% group_by(model, ref, select_kind, pre, lr) %>% 
+  summarize( score=median(score), score_lab=signif(score,4)) %>%ungroup()
+
+# select the best TNR
+best_tnr<-max(tccv$score)
+
+# highlite
+tccv<-tccv %>% mutate( highlite=(score==best_tnr))
+png("DARQ_CV_performance_10epochs_tnr.png", width=2000, height=1500)
+#    theme(axis.text.x=element_text(angle=45,vjust=0.3))+
+ggplot(ccv,aes(y=score, x=select_kind))+
+    theme_bw(base_size = 30)+
+    geom_boxplot()+
+    facet_grid(model~ref+lr, labeller='label_both')+
+    geom_text(data=tccv, aes(label=score_lab, x=select_kind, y=score,color=highlite),show.legend = F,size=6,nudge_y=0.03)+
+    scale_colour_manual(labels=c(F,T),values=c('black','red'))+
+    ggtitle('DARQ 8-fold CV, TNR')
+
+
+# long performance
+long<-bind_rows( 
+    fromJSON('model_r18_ref_long/log_0_0.json')$validation%>%mutate(model='r18_ref'),
+    fromJSON('model_r50_ref_long/log_0_0.json')$validation%>%mutate(model='r50_ref'))
+
+long_m<-long%>%gather(`acc`,`prec`,`auc`,`tpr`,`tnr`,key='measure', value='score')
+
+png("DARQ_fitting.png", width=2000, height=1500)
+
+ggplot(long_m,aes(y=score, x=ctr,color=measure,fill=measure))+
+    theme_bw(base_size = 32)+
+    geom_smooth()+
+    facet_grid(.~model,scales='free_x')+xlab('minibatch')+
+    ggtitle('DARQ FIT')
