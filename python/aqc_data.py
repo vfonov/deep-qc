@@ -56,7 +56,10 @@ def load_full_db(qc_db_path, data_prefix, validate_presence=False, feat=3, table
 def load_qc_images(imgs):
     ret = []
     for i, j in enumerate(imgs):
-        im=io.imread(j)
+        try:
+            im = io.imread(j)
+        except :
+            raise NameError(f"Problem reading {j}")
         assert im.shape == (224, 224)
         ret.append(torch.from_numpy(im).unsqueeze_(0).float()/255.0-0.5)
     return ret

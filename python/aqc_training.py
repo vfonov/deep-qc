@@ -155,9 +155,9 @@ if __name__ == '__main__':
     params.ref = params.ref
     
     all_samples_main = load_full_db(data_prefix + os.sep + db_name, 
-                   data_prefix, False, table="qc_all")
+                   data_prefix, True, table="qc_all")
     all_samples_aug = load_full_db(data_prefix + os.sep + db_name, 
-                   data_prefix, False, table="qc_all_aug")
+                   data_prefix, True, table="qc_all_aug")
 
     print("Main samples: {}".format(len(all_samples_main)))
     print("Aug  samples: {}".format(len(all_samples_aug)))
