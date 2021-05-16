@@ -265,8 +265,9 @@ if __name__ == '__main__':
             log['epoch']=epoch
             
             if params.freq is not None and \
-                (global_ctr%params.freq)==0 and \
-                len(validation)>0:
+                  (global_ctr%params.freq)==0 and \
+                  len(validation)>0:
+                model.train(False)
                 val_info = run_validation_testing_loop(validation_dataloader,model,details=False)
                 val = val_info['summary']
                 
@@ -301,6 +302,7 @@ if __name__ == '__main__':
                 val['epoch']=epoch
                 val['ctr']=global_ctr
                 validation_log.append(val)
+                model.train(True)
 
             training_log.append(log)
             global_ctr += 1
