@@ -457,6 +457,12 @@ if __name__ == '__main__':
                 'adam': params.adam,
                 'lr': params.lr,
 
+                'grad_norm' : grad_norm,
+                'regularize_l2': regularize_l2,
+                'init_lr': init_lr,
+                'warmup_lr':warmup_lr,
+                'warmup_iter': warmup_iter,              
+
                 'best_acc':best_acc, 
                 'best_acc_epoch':best_acc_epoch, 
                 'best_acc_ctr':best_acc_ctr, 
