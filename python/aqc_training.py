@@ -164,8 +164,8 @@ if __name__ == '__main__':
     clip_grad_norm = params.clip
     regularize_l2 = params.l2
     init_lr = params.lr
-    warmap_lr = params.warmup_lr
-    warmap_iter = params.warmup_iter
+    warmup_lr = params.warmap_lr
+    warmup_iter = params.warmup_iter
     
     all_samples_main = load_full_db(data_prefix + os.sep + db_name, 
                    data_prefix, True, table="qc_all")
@@ -250,11 +250,11 @@ if __name__ == '__main__':
 
         model.train(True)  # Set model to training mode
         for i_batch, sample_batched in enumerate(training_dataloader):
-            if epoch==0 and warmap_iter>0:
+            if epoch==0 and warmup_iter>0:
                 if i_batch == 0:
                     for g in optimizer.param_groups :
-                        g[ 'lr' ] = warmap_lr
-                elif i_batch == warmap_iter:
+                        g[ 'lr' ] = warmup_lr
+                elif i_batch == warmup_iter:
                     for g in optimizer.param_groups :
                         g[ 'lr' ] = init_lr
 
