@@ -161,7 +161,7 @@ if __name__ == '__main__':
     data_prefix = "../data"
     db_name = "qc_db.sqlite3"
     params.ref = params.ref
-    clip_grad_norm = params.clip
+    grad_norm = params.clip
     regularize_l2 = params.l2
     init_lr = params.lr
     warmup_lr = params.warmup_lr
@@ -277,8 +277,8 @@ if __name__ == '__main__':
             # if training
             loss.backward()
 
-            if clip_grad_norm > 0.0:
-                grad_log = clip_grad_norm(model.parameters(), clip_grad_norm)
+            if grad_norm > 0.0:
+                grad_log = clip_grad_norm(model.parameters(), grad_norm)
             else:
                 grad_log = get_model_grad_norm(model.parameters())
 
