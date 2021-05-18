@@ -96,5 +96,18 @@ g3<-ggplot(apr,aes(x=X1,y=X2, color=select_kind))+
 
 grid.arrange(g1,g2,g3,nrow=1)
 
+# PRINT false positives
+print("False positives for final")
+ss<-e%>%filter(select_kind=='final')
 
+# select worst offenders
+print(head(ss%>%filter(labels==0,scores>0.5)%>%arrange(-scores)))
+
+
+
+print("False negatives for final")
+ss<-e%>%filter(select_kind=='final')
+
+# select worst offenders
+print(head(ss%>%filter(labels==1,scores<0.5)%>%arrange(scores)))
 
