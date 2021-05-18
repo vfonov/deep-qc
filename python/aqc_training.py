@@ -133,9 +133,9 @@ def parse_options():
                         help="Use ImageNet pretrained models") 
     parser.add_argument("--lr",type=float, default=0.0001,
                         help="Learning rate")
-    parser.add_argument("--warmap_lr",type=float, default=1e-9,
+    parser.add_argument("--warmup_lr",type=float, default=1e-9,
                         help="Warmup learning rate")
-    parser.add_argument("--warmap_iter",type=int, default=0,
+    parser.add_argument("--warmup_iter",type=int, default=0,
                         help="Warmup iterations")
     parser.add_argument("--seed", type=int, default=42,
                         help="Seed for shuffling data")
@@ -164,7 +164,7 @@ if __name__ == '__main__':
     clip_grad_norm = params.clip
     regularize_l2 = params.l2
     init_lr = params.lr
-    warmup_lr = params.warmap_lr
+    warmup_lr = params.warmup_lr
     warmup_iter = params.warmup_iter
     
     all_samples_main = load_full_db(data_prefix + os.sep + db_name, 
