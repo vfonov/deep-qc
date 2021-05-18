@@ -450,6 +450,8 @@ if __name__ == '__main__':
                 'fold': params.fold,
 
                 'model': params.net,
+                'model_load': params.load,
+                
                 'ref': params.ref,
                 'batch_size': params.batch_size,
                 'n_epochs': params.n_epochs,
