@@ -248,7 +248,7 @@ class QCDataset(Dataset):
             else: 
                 status=0 
             
-            _id='%s_%s_%s_%s' % (variant, cohort, subject, visit)
+            _id = ':'.join((variant, cohort, subject, visit))
             qc=[]
             
             for i in range(feat):
