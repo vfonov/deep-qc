@@ -133,6 +133,10 @@ def parse_options():
                         help="Use ImageNet pretrained models") 
     parser.add_argument("--lr",type=float, default=0.0001,
                         help="Learning rate")
+    parser.add_argument("--warmap_lr",type=float, default=1e-9,
+                        help="Warmup learning rate")
+    parser.add_argument("--warmap_iter",type=int, default=0,
+                        help="Warmup iterations")
     parser.add_argument("--seed", type=int, default=42,
                         help="Seed for shuffling data")
     parser.add_argument("--fold", type=int, default=0,
@@ -143,6 +147,10 @@ def parse_options():
                         help="Number of unique subjects used for validation")
     parser.add_argument("--freq", type=int, default=None,
                         help="Perform frequent validations, every N minibatches (for debugging)")
+    parser.add_argument("--clip", type=float, default=0.0,
+                        help="Apply gradient clipping")
+    parser.add_argument("--l2", type=float, default=None,
+                        help="Apply l2 regularization")
 
     params = parser.parse_args()
     
@@ -153,6 +161,11 @@ if __name__ == '__main__':
     data_prefix = "../data"
     db_name = "qc_db.sqlite3"
     params.ref = params.ref
+    clip_grad_norm = params.clip
+    regularize_l2 = params.l2
+    init_lr = params.lr
+    warmap_lr = params.warmup_lr
+    warmap_iter = params.warmup_iter
     
     all_samples_main = load_full_db(data_prefix + os.sep + db_name, 
                    data_prefix, True, table="qc_all")
@@ -197,7 +210,7 @@ if __name__ == '__main__':
     if params.adam:
         # parameters from LUA version
         optimizer = optim.Adam(model.parameters(), 
-           lr=params.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.0001)
+           lr=init_lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.0001)
     else:
         optimizer = optim.SGD(model.parameters(), lr=params.lr, momentum=0.9, weight_decay=0.0001)
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
@@ -237,6 +250,14 @@ if __name__ == '__main__':
 
         model.train(True)  # Set model to training mode
         for i_batch, sample_batched in enumerate(training_dataloader):
+            if epoch==0 and warmap_iter>0:
+                if i_batch == 0:
+                    for g in optimizer.param_groups :
+                        g[ 'lr' ] = warmap_lr
+                elif i_batch == warmap_iter:
+                    for g in optimizer.param_groups :
+                        g[ 'lr' ] = init_lr
+
             inputs = sample_batched['image'].cuda()
             labels = sample_batched['status'].cuda()
 
@@ -249,15 +270,26 @@ if __name__ == '__main__':
                 _, preds = torch.max(outputs.data, 1)
             loss = nn.functional.cross_entropy(outputs, labels)
 
+            if regularize_l2>0.0:
+                l2_norm = model_param_norm(model , 2)
+                loss = loss + l2_norm * regularize_l2
+
             # if training
             loss.backward()
+
+            if clip_grad_norm > 0.0:
+                grad_log = clip_grad_norm(model.parameters(), clip_grad_norm)
+            else:
+                grad_log = get_model_grad_norm(model.parameters())
+
             optimizer.step()
 
             batch_loss = loss.data.item() * inputs.size(0)
             batch_acc  = torch.sum(preds == labels.data).item()
 
             log={'loss': batch_loss/inputs.size(0),
-                 'acc':  batch_acc/inputs.size(0)}
+                 'acc':  batch_acc/inputs.size(0),
+                 'grad':float(grad_log)}
             # training stats
             writer.add_scalars('{}/training'.format(params.output),
                                 log, global_ctr)

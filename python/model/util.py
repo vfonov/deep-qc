@@ -65,3 +65,84 @@ def get_qc_model(params, use_ref=False, pretrained=True):
         load_model(model, params.load)
 
     return model
+
+
+
+def clip_grad_norm(parameters, max_norm, norm_type=2):
+    """Clips gradient norm of an iterable of parameters.
+    The norm is computed over all gradients together, as if they were
+    concatenated into a single vector. Gradients are modified in-place.
+    Arguments:
+        parameters (Iterable[Variable]): an iterable of Variables that will have
+            gradients normalized
+        max_norm (float or int): max norm of the gradients
+        norm_type (float or int): type of the used p-norm. Can be ``'inf'`` for infinity norm.
+    Returns: grad norm before clipping (for logging mostly)
+    """
+    parameters = list(parameters)
+    max_norm = float(max_norm)
+    norm_type = float(norm_type)
+    if norm_type == float('inf'):
+        total_norm = max(p.grad.abs().max() for p in parameters)
+    else:
+        total_norm = 0
+        for p in parameters:
+            if p.grad is not None:
+                param_norm = p.grad.norm(norm_type)
+                total_norm += param_norm ** norm_type
+
+        total_norm = total_norm ** (1. / norm_type)
+    clip_coef = max_norm / (total_norm + 1e-6)
+    if clip_coef >= 1:
+        return total_norm
+    for p in parameters:
+        if p.grad is not None:
+            p.grad.mul_(clip_coef)
+    
+    return total_norm
+
+
+def get_model_grad_norm(model,norm_type=2):
+    parameters = model.parameters()
+    parameters = list(parameters)
+
+    if norm_type == float('inf'):
+        total_norm = max(p.grad.abs().max() for p in parameters)
+    else:
+        total_norm = 0.0
+        for p in parameters:
+            if p.grad is None:
+                # should not happen ?
+                return None
+            param_norm = p.grad.norm(norm_type)
+            total_norm += param_norm ** norm_type
+
+    return float(total_norm)
+
+def model_param_norm(model,norm_type=2):
+    # based on https://discuss.pytorch.org/t/how-does-one-implement-weight-regularization-l1-or-l2-manually-without-optimum/7951
+    parameters = model.parameters()
+
+    total_norm = None
+    for p in model.parameters():
+        param_norm = p.norm(norm_type)
+        if total_norm is not None:
+            total_norm += param_norm ** norm_type
+        else:
+            total_norm = param_norm ** norm_type
+
+    return total_norm
+
+
+def get_grad_norms(model, norm_type=2):
+    """
+    Get grad norms
+    :param model:  torch.nn.ModuleDict
+    :param norm_type: norm type, default L2
+    :return: dict with norms
+    """
+    r={}
+    for m in model:
+        r.update({m:get_model_grad_norm(model[m])})
+
+    return r
