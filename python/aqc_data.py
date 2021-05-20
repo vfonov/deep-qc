@@ -159,39 +159,28 @@ def split_dataset(all_samples, fold=0, folds=8, validation=5,
             subjects.add(i.subject)
     
     # split into three
-    training_samples, validation_samples, testing_samples = init_cv(
+    training_subjects, validation_subjects, testing_subjects = init_cv(
         list(subjects), fold=fold, folds=folds, 
         validation=validation, shuffle=shuffle,seed=seed
         )
-    training_samples=set(training_samples)
-    validation_samples=set(validation_samples)
-    testing_samples=set(testing_samples)
+    training_subjects=set(training_subjects)
+    validation_subjects=set(validation_subjects)
+    testing_subjects=set(testing_subjects)
 
 
     # sanity check
-    print("training * validation:",training_samples.intersection(validation_samples))
-    print("training * testing:",training_samples.intersection(testing_samples))
-    print("validation * testing:",training_samples.intersection(validation_samples))
+    print("training * validation:",training_subjects.intersection(validation_subjects))
+    print("training * testing:",training_subjects.intersection(testing_subjects))
+    print("validation * testing:",training_subjects.intersection(validation_subjects))
 
     # apply index
-    training = []
-    validation = []
-    testing = []
-
-    for i in all_samples:
-        if i.subject in testing_samples:
-            testing.append(i)
-        elif i.subject in validation_samples:
-            validation.append(i)
+    validation = [i for i in all_samples if i.subject in validation_subjects]
+    testing =    [i for i in all_samples if i.subject in testing_subjects]
     
     if sec_samples is not None:
-        for i in sec_samples:
-           if i.subject in training_samples:
-               training.append(i)
+        training = [i for i in sec_samples if i.subject in training_subjects]
     else:
-        for i in all_samples:
-           if i.subject in training_samples:
-                training.append(i)
+        training = [i for i in all_samples if i.subject in training_subjects]
     
     return training, validation, testing
 
@@ -237,9 +226,35 @@ class QCDataset(Dataset):
         return {'image':_images, 'status':_s[1], 'id':_s.id}
 
     def n_subjects(self):
+        """
+        Return number of unique subjects
+        """
         return len(self.qc_subjects)
 
+    def get_balance(self):
+        """
+        Calculate class balance True/(True+False)
+        """
+        cnt=np.zeros(2)
+        for i in self.qc_samples:
+            cnt[i.status]=cnt[i.status]+1
+        
+        return cnt[1]/(cnt[1]+cnt[0])
 
+    def balance(self):
+        """
+        Balance dataset by excluding some samples
+        """
+        cnt=np.zeros(2)
+        # TODO: shuffle?
+        pos_samples=[i for i in self.qc_samples if i.status==1]
+        neg_samples=[i for i in self.qc_samples if i.status==0]
+        
+        n_both=min(len(pos_samples),len(neg_samples))
+
+        self.qc_samples = pos_samples[0:n_both]+neg_samples[0:n_both]
+
+        
 class MincVolumesDataset(Dataset):
     """
     Minc volumes dataset, loads slices from a list of images

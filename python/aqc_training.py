@@ -52,7 +52,7 @@ def run_validation_testing_loop(dataloader, model, loss_fn=nn.functional.cross_e
 
             ids.extend(v_sample_batched['id'])
 
-            _preds=np.concatenate((_preds,  preds.cpu().numpy()))
+            _preds =np.concatenate((_preds,  preds.cpu().numpy()))
             _labels=np.concatenate((_labels,labels.cpu().numpy()))
             _scores=np.concatenate((_scores,outputs[:,1].cpu().numpy()))
 
@@ -151,6 +151,8 @@ def parse_options():
                         help="Apply gradient clipping")
     parser.add_argument("--l2", type=float, default=None,
                         help="Apply l2 regularization")
+    parser.add_argument("--balance",action="store_true",default=False,
+                        help="Balance validation and testing sample")
 
     params = parser.parse_args()
     
@@ -186,9 +188,13 @@ if __name__ == '__main__':
     validate_dataset = QCDataset(validation, data_prefix, use_ref=params.ref)
     testing_dataset  = QCDataset(testing, data_prefix,    use_ref=params.ref)
     
-    print("Training   {} samples, {} unique subjects".format(len(train_dataset),train_dataset.n_subjects()))
-    print("Validation {} samples, {} unique subjects".format(len(validate_dataset),validate_dataset.n_subjects()))
-    print("Testing    {} samples, {} unique subjects".format(len(testing_dataset),testing_dataset.n_subjects()))
+    if params.balance:
+        validate_dataset.balance()
+        testing_dataset.balance()
+
+    print("Training   {} samples, {} unique subjects, balance {}".format(len(train_dataset),   train_dataset.n_subjects(), train_dataset.get_balance()))
+    print("Validation {} samples, {} unique subjects, balance {}".format(len(validate_dataset),validate_dataset.n_subjects(), validate_dataset.get_balance()))
+    print("Testing    {} samples, {} unique subjects, balance {}".format(len(testing_dataset), testing_dataset.n_subjects(), testing_dataset.get_balance()))
 
     training_dataloader = DataLoader(train_dataset, 
                           batch_size=params.batch_size,
@@ -386,7 +392,7 @@ if __name__ == '__main__':
             print('Epoch: {} no validation'.format(epoch))
 
 
-
+    ###
     final_model = copy.deepcopy(model.state_dict())
     if params.save_final:
         save_model(model,"final", params.output, fold=params.fold, folds=params.folds)
@@ -413,7 +419,7 @@ if __name__ == '__main__':
     if len(testing)>0:
         print("Testing...")
         testing_dataloader = DataLoader(testing_dataset, 
-                            batch_size=1,
+                            batch_size=params.batch_size,
                             shuffle=False, 
                             num_workers=params.workers,
                             drop_last=False)
@@ -442,12 +448,25 @@ if __name__ == '__main__':
 
     log_path = os.path.join(params.output, 'log_{}_{}.json'.format(params.fold,params.folds))
 
+
+    # DEBUG
+    training_subjects=set(i.subject for i in train_dataset.qc_samples)
+    validation_subjects=set(i.subject for i in validate_dataset.qc_samples)
+    testing_subjects=set(i.subject for i in testing_dataset.qc_samples)
+    
+    # DEBUG
+    
     print("Saving log to {}".format(log_path))
     with open(log_path,'w') as f:
         json.dump(
             {
                 'folds': params.folds,
                 'fold': params.fold,
+                ### DEBUG
+                'training': list(training_subjects),
+                'validation': list(validation_subjects),
+                'testing': list(testing_subjects),
+                ### DEBUB
 
                 'model': params.net,
                 'model_load': params.load,
