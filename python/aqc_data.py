@@ -16,15 +16,18 @@ import math
 from torch.utils.data import Dataset, DataLoader
 
 QC_entry = collections.namedtuple( 
-    'QC_entry',['id', 'status', 'qc_files', 'variant', 'cohort', 'subject', 'visit' ] )
+    'QC_entry', ['id', 'status', 'qc_files', 'variant', 'cohort', 'subject', 'visit' ] )
 
 
-def load_full_db(qc_db_path, data_prefix, validate_presence=False, feat=3, table="qc_all"):
+def load_full_db(qc_db_path, 
+                data_prefix, 
+                validate_presence=False, 
+                feat=3, table="qc_all"):
     """Load complete QC database into memory
     """
     import sqlite3
 
-    with sqlite3.connect(qc_db_path) as qc_db:
+    with sqlite3.connect( qc_db_path ) as qc_db:
         query = f"select variant,cohort,subject,visit,path,xfm,pass from {table}"
 
         samples = []
@@ -33,7 +36,7 @@ def load_full_db(qc_db_path, data_prefix, validate_presence=False, feat=3, table
         for line in qc_db.execute(query):
             variant, cohort, subject, visit, path, xfm, _pass = line
 
-            if _pass=='TRUE': status=1 
+            if _pass == 'TRUE': status=1 
             else: status=0 
 
             _id='{}:{}:{}:{}'.format(variant, cohort, subject, visit)
@@ -126,7 +129,9 @@ def init_cv(dataset, fold=0, folds=8, validation=5, shuffle=False, seed=None):
     if folds > 0:
         training_samples = np.concatenate((whole_range[0:math.floor(fold * n_samples / folds)],
                                            whole_range[math.floor((fold + 1) * n_samples / folds):n_samples]))
-        testing_samples = whole_range[math.floor(fold * n_samples / folds): math.floor((fold + 1) * n_samples / folds)]
+
+        testing_samples = whole_range[math.floor(fold * n_samples / folds): 
+                                      math.floor((fold + 1) * n_samples / folds)]
     else:
         training_samples = whole_range
         testing_samples = whole_range[0:0]
@@ -134,9 +139,9 @@ def init_cv(dataset, fold=0, folds=8, validation=5, shuffle=False, seed=None):
     validation_samples = training_samples[0:validation]
     training_samples = training_samples[validation:]
 
-    return [dataset[i] for i in training_samples], \
-           [dataset[i] for i in validation_samples], \
-           [dataset[i] for i in testing_samples]
+    return [ dataset[i] for i in training_samples   ], \
+           [ dataset[i] for i in validation_samples ], \
+           [ dataset[i] for i in testing_samples    ]
 
 def split_dataset(all_samples, fold=0, folds=8, validation=5, 
     shuffle=False, seed=None, sec_samples=None):
@@ -153,14 +158,20 @@ def split_dataset(all_samples, fold=0, folds=8, validation=5,
         for i in sec_samples:
             subjects.add(i.subject)
     
-    subjects=list(subjects)
     # split into three
     training_samples, validation_samples, testing_samples = init_cv(
-        subjects, fold=fold,folds=folds, validation=validation, shuffle=shuffle,seed=seed
+        list(subjects), fold=fold, folds=folds, 
+        validation=validation, shuffle=shuffle,seed=seed
         )
     training_samples=set(training_samples)
     validation_samples=set(validation_samples)
     testing_samples=set(testing_samples)
+
+
+    # sanity check
+    print("training * validation:",training_samples.intersection(validation_samples))
+    print("training * testing:",training_samples.intersection(testing_samples))
+    print("validation * testing:",training_samples.intersection(validation_samples))
 
     # apply index
     training = []
