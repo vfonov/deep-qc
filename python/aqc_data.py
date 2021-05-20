@@ -36,7 +36,7 @@ def load_full_db(qc_db_path, data_prefix, validate_presence=False, feat=3, table
             if _pass=='TRUE': status=1 
             else: status=0 
 
-            _id='{}_{}_{}_{}'.format(variant, cohort, subject, visit)
+            _id='{}:{}:{}:{}'.format(variant, cohort, subject, visit)
 
             qc_files=[]
             for i in range(feat):
@@ -227,52 +227,6 @@ class QCDataset(Dataset):
 
     def n_subjects(self):
         return len(self.qc_subjects)
-
-    def load_qc_db(self, data_prefix, feat=3, training_path=True):
-        # load training list
-        samples = []
-        status = 2
-        subjects = []
-        
-        # populate table with locations of QC jpg files
-        if training_path:
-            query = "select variant,cohort,subject,visit,path,xfm,pass from qc_all where subject not in (select subject from mem.val_subjects)"
-        else:
-            query = "select variant,cohort,subject,visit,path,xfm,pass from qc_all where subject in (select subject from mem.val_subjects)"
-
-        for line in self.qc_db.execute(query):
-            variant, cohort, subject, visit, path, xfm, _pass = line
-            
-            if _pass=='TRUE': 
-                status=1 
-            else: 
-                status=0 
-            
-            _id = ':'.join((variant, cohort, subject, visit))
-            qc=[]
-            
-            for i in range(feat):
-                qc_file='{}/{}/qc/aqc_{}_{}_{}.jpg'.format(data_prefix, path, subject, visit, i)
-                
-
-                if self.validate and not os.path.exists(qc_file):
-                    print("Check:",qc_file)
-                else:
-                    qc.append(qc_file)
-
-            if len(qc)==feat:
-                samples.append([ _id, status, qc, variant, cohort, subject, visit ])
-        
-        if training_path:
-            query="select subject from all_subjects where subject not in (select subject from mem.val_subjects)" 
-        else:
-            query="select subject from mem.val_subjects" 
-
-        # make a list of all subjects
-        for line in self.qc_db.execute( query ) :
-            subjects.append(line[0])
-        
-        return samples,subjects
 
 
 class MincVolumesDataset(Dataset):
