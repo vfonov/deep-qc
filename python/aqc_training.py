@@ -209,7 +209,8 @@ if __name__ == '__main__':
                           num_workers=params.workers,
                           drop_last=False)
 
-    model = get_qc_model(params, use_ref=params.ref, pretrained=params.pretrained)
+    model = get_qc_model(params, use_ref=params.ref, 
+                        pretrained=params.pretrained)
 
     model = model.cuda()
     #criterion = nn.CrossEntropyLoss()
@@ -301,6 +302,7 @@ if __name__ == '__main__':
                                 log, global_ctr)
             log['ctr']=global_ctr
             log['epoch']=epoch
+
             
             if params.freq is not None and \
                   (global_ctr%params.freq)==0 and \
@@ -446,15 +448,9 @@ if __name__ == '__main__':
     if not os.path.exists(params.output):
         os.makedirs(params.output)
 
-    log_path = os.path.join(params.output, 'log_{}_{}.json'.format(params.fold,params.folds))
+    log_path = os.path.join(params.output, 
+                'log_{}_{}.json'.format(params.fold,params.folds))
 
-
-    # DEBUG
-    training_subjects=set(i.subject for i in train_dataset.qc_samples)
-    validation_subjects=set(i.subject for i in validate_dataset.qc_samples)
-    testing_subjects=set(i.subject for i in testing_dataset.qc_samples)
-    
-    # DEBUG
     
     print("Saving log to {}".format(log_path))
     with open(log_path,'w') as f:
@@ -462,21 +458,22 @@ if __name__ == '__main__':
             {
                 'folds': params.folds,
                 'fold': params.fold,
+
                 ### DEBUG
-                'training': list(training_subjects),
-                'validation': list(validation_subjects),
-                'testing': list(testing_subjects),
+                #'training_subj':   list(train_dataset.qc_subjects),
+                #'validation_subj': list(validate_dataset.qc_subjects),
+                #'testing_subj':    list(testing_dataset.qc_subjects),
                 ### DEBUB
 
-                'model': params.net,
+                'model':      params.net,
                 'model_load': params.load,
                 
-                'ref': params.ref,
+                'ref':        params.ref,
                 'batch_size': params.batch_size,
-                'n_epochs': params.n_epochs,
+                'n_epochs':   params.n_epochs,
                 'pretrained': params.pretrained,
-                'adam': params.adam,
-                'lr': params.lr,
+                'adam':       params.adam,
+                'lr':         params.lr,
 
                 'grad_norm' : grad_norm,
                 'regularize_l2': regularize_l2,

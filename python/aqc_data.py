@@ -137,7 +137,7 @@ def init_cv(dataset, fold=0, folds=8, validation=5, shuffle=False, seed=None):
         testing_samples = whole_range[0:0]
     #
     validation_samples = training_samples[0:validation]
-    training_samples = training_samples[validation:]
+    training_samples   = training_samples[validation:]
 
     return [ dataset[i] for i in training_samples   ], \
            [ dataset[i] for i in validation_samples ], \
@@ -160,18 +160,12 @@ def split_dataset(all_samples, fold=0, folds=8, validation=5,
     
     # split into three
     training_subjects, validation_subjects, testing_subjects = init_cv(
-        list(subjects), fold=fold, folds=folds, 
-        validation=validation, shuffle=shuffle,seed=seed
+            sorted(list(subjects)), fold=fold, folds=folds, 
+            validation=validation, shuffle=shuffle,seed=seed
         )
     training_subjects=set(training_subjects)
     validation_subjects=set(validation_subjects)
     testing_subjects=set(testing_subjects)
-
-
-    # sanity check
-    print("training * validation:",training_subjects.intersection(validation_subjects))
-    print("training * testing:",training_subjects.intersection(testing_subjects))
-    print("validation * testing:",training_subjects.intersection(validation_subjects))
 
     # apply index
     validation = [i for i in all_samples if i.subject in validation_subjects]
@@ -211,10 +205,10 @@ class QCDataset(Dataset):
                              self.data_prefix + os.sep + "mni_icbm152_t1_tal_nlin_sym_09c_2.jpg" ])
 
     def __len__(self):
-        return len(self.qc_samples)
+        return len( self.qc_samples )
 
     def __getitem__(self, idx):
-        _s = self.qc_samples[idx]
+        _s = self.qc_samples[ idx ]
         # load images     
         _images = load_qc_images( _s.qc_files )
 
@@ -237,22 +231,21 @@ class QCDataset(Dataset):
         """
         cnt=np.zeros(2)
         for i in self.qc_samples:
-            cnt[i.status]=cnt[i.status]+1
-        
-        return cnt[1]/(cnt[1]+cnt[0])
+            cnt[i.status] = cnt[i.status]+1
+        return cnt[1]/(cnt[1]+cnt[0]) if (cnt[1]+cnt[0])>0 else 0.0
 
     def balance(self):
         """
         Balance dataset by excluding some samples
         """
-        cnt=np.zeros(2)
         # TODO: shuffle?
         pos_samples=[i for i in self.qc_samples if i.status==1]
         neg_samples=[i for i in self.qc_samples if i.status==0]
         
         n_both=min(len(pos_samples),len(neg_samples))
 
-        self.qc_samples = pos_samples[0:n_both]+neg_samples[0:n_both]
+        self.qc_samples = pos_samples[0:n_both] + neg_samples[0:n_both]
+        self.qc_subjects = set(i.subject for i in self.qc_samples)
 
         
 class MincVolumesDataset(Dataset):
