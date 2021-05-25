@@ -15,6 +15,7 @@ for m in r34,10,128 ;do
       --lr $lr --warmup_iter 100 \
       --clip 1.0 \
       --l2 0.0 \
+      --balance \
       --adam \
       --ref --fold $f --pretrained \
       --folds $FOLDS --net ${i[0]} \
