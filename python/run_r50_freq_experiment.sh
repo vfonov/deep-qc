@@ -1,7 +1,7 @@
 #! /bin/bash
 
 
-for m in r50,30,128 ;do
+for m in r50,30,80 ;do
  i=( ${m//,/ } )
  if [ ! -e model_${i[0]}_ref_long/final.pth ];then
   python aqc_training.py \
