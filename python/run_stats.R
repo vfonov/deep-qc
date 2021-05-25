@@ -22,6 +22,8 @@ cv<-data.frame()
 
 rrr=fromJSON(opt$input)
 
+if(rrr$folds>0) {
+
 fold<-bind_rows(
     as.data.frame(rrr$testing_final$summary)   %>%mutate(select_kind='final'),
     as.data.frame(rrr$testing_best_acc$summary)%>%mutate(select_kind='acc'),
@@ -29,7 +31,7 @@ fold<-bind_rows(
     as.data.frame(rrr$testing_best_tpr$summary)%>%mutate(select_kind='tpr'),
     as.data.frame(rrr$testing_best_tnr$summary)%>%mutate(select_kind='tnr'))
 
-cv<-bind_rows(cv,fold)
+cv<-bind_rows(cv, fold)
 
 cv<-cv %>% mutate(select_kind=factor(select_kind, levels=c('final', 'auc', 'acc', 'tpr', 'tnr') ))
 
@@ -44,31 +46,18 @@ best_tnr<-max( (tccv%>%filter(measure=='tnr'))$score)
 tccv<-tccv %>% mutate( highlite=(score==best_tnr)&(measure=='tnr') )
 
 #     geom_hline(data=tccv,aes(x=measure,yintercept=score))+
-
-png(opt$output, width=20, height=10, res=200, units = "in", pointsize = 12, type='cairo', antialias = "default")
-
-g1<-ggplot(ccv,aes(y=score,x=select_kind))+
-    theme_bw(base_size = 16)+
-    geom_boxplot()+
-    facet_wrap(.~measure, labeller='label_both',ncol=8)+
-    geom_text(data=tccv, aes(label=score_lab, x=select_kind, y=score,color=highlite),show.legend = F,size=3,nudge_y=0.03)+
-    scale_colour_manual(labels=c(F,T),values=c('black','red'))+
-    ggtitle("Performance on testing dataset")
-
-# long performance
-long<-rrr$validation
-
-long_m<-long%>%gather(`acc`,`prec`,`auc`,`tpr`,`tnr`,key='measure', value='score')
-
-g2<-ggplot(long_m,aes(y=score, x=ctr,color=measure,fill=measure))+
-    theme_bw(base_size = 16)+
-    geom_smooth()+xlab('minibatch')+
-    ggtitle("Performance on validation dataset")
+    g1<-ggplot(ccv,aes(y=score,x=select_kind))+
+        theme_bw(base_size = 16)+
+        geom_boxplot()+
+        facet_wrap(.~measure, labeller='label_both',ncol=8)+
+        geom_text(data=tccv, aes(label=score_lab, x=select_kind, y=score,color=highlite),show.legend = F,size=3,nudge_y=0.03)+
+        scale_colour_manual(labels=c(F,T),values=c('black','red'))+
+        ggtitle("Performance on testing dataset")
 
 
 
 # precision-recall curves
-e <- bind_rows(
+e<-bind_rows(
     as.data.frame(rrr$testing_final$details)   %>%mutate(select_kind='final'),
     as.data.frame(rrr$testing_best_acc$details)%>%mutate(select_kind='acc'),
     as.data.frame(rrr$testing_best_auc$details)%>%mutate(select_kind='auc'),
@@ -94,20 +83,40 @@ g3<-ggplot(apr,aes(x=X1,y=X2, color=select_kind))+
     geom_line()+
     labs(x="Recall", y="Precision")
 
-grid.arrange(g1,g2,g3,nrow=1)
+}
 
-# PRINT false positives
-print("False positives for final")
-ss<-e%>%filter(select_kind=='final')
-
-# select worst offenders
-print(head(ss%>%filter(labels==0,scores>0.5)%>%arrange(-scores)))
+png(opt$output, width=20, height=10, res=200, units = "in", pointsize = 12, type='cairo', antialias = "default")
 
 
+# long performance
+long<-rrr$validation
 
-print("False negatives for final")
-ss<-e%>%filter(select_kind=='final')
+long_m<-long%>%gather(`acc`,`prec`,`auc`,`tpr`,`tnr`,key='measure', value='score')
 
-# select worst offenders
-print(head(ss%>%filter(labels==1,scores<0.5)%>%arrange(scores)))
+g2<-ggplot(long_m,aes(y=score, x=ctr,color=measure,fill=measure))+
+    theme_bw(base_size = 16)+
+    geom_smooth()+xlab('minibatch')+
+    ggtitle("Performance on validation dataset")
+
+if(rrr$folds>0) {
+    grid.arrange(g1,g2,g3,nrow=1)
+
+    # PRINT false positives
+    print("False positives for final")
+    ss<-e%>%filter(select_kind=='final')
+
+    # select worst offenders
+    print(head(ss%>%filter(labels==0,scores>0.5)%>%arrange(-scores)))
+
+
+
+    print("False negatives for final")
+    ss<-e%>%filter(select_kind=='final')
+
+    # select worst offenders
+    print(head(ss%>%filter(labels==1,scores<0.5)%>%arrange(scores)))
+
+} else {
+    print(g2)
+}
 
