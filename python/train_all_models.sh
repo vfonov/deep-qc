@@ -1,0 +1,27 @@
+#! /bin/bash
+
+lr=0.0001
+
+# train with reference
+for m in \
+         r18,10,196 \
+         r34,10,128 \
+         r50,10,80 \
+         r101,10,48 \
+         r152,10,32 ;do
+ i=( ${m//,/ } )
+ out=model_${i[0]}_ref
+ if [ ! -e $out/final.pth ];then
+  mkdir -p $out
+  python aqc_training.py \
+      --lr $lr --warmup_iter 100 \
+      --clip 1.0 --l2 0.0 \
+      --ref --pretrained \
+      --balance \
+      --adam \
+      --fold 0 --folds 0 --net ${i[0]} \
+      --n_epochs ${i[1]} --batch_size ${i[2]}  \
+      --save_final --save_best \
+      $out --ref 2>&1 |tee $out/log_ref_${i[0]}.txt
+ fi
+done
