@@ -13,7 +13,7 @@ def load_model(model, to_load):
     #print('Loading the model from {} ...' .format( to_load))
     model.load_state_dict( torch.load(to_load) )
 
-def save_model(model, name, base,fold=0,folds=0):
+def save_model(model, name, base, fold=0, folds=0, cpu=False):
     """
     Save the model.
     """
@@ -26,7 +26,10 @@ def save_model(model, name, base,fold=0,folds=0):
         path = os.path.join(base, '{}_{}_{}.pth'.format( name,fold,folds) )
     
     print('Saving the model to {} ...' .format( path))
-    torch.save(model.state_dict(), path)
+    if cpu:
+        torch.save(model.cpu().state_dict(), path)
+    else:
+        torch.save(model.state_dict(), path)
 
 
 def get_qc_model(params, use_ref=False, pretrained=True):

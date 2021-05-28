@@ -21,7 +21,7 @@ for m in \
       --adam \
       --fold 0 --folds 0 --net ${i[0]} \
       --n_epochs ${i[1]} --batch_size ${i[2]}  \
-      --save_final --save_best \
+      --save_final --save_best --save_cpu \
       $out --ref 2>&1 |tee $out/log_ref_${i[0]}.txt
  fi
 done

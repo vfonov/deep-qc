@@ -122,6 +122,8 @@ def parse_options():
                         help="Save final model") 
     parser.add_argument("--save_best",action="store_true",default=False,
                         help="Save final best models") 
+    parser.add_argument("--save_cpu",action="store_true",default=False,
+                        help="Save models for CPU inference") 
     parser.add_argument("--net", choices=['r18', 'r34', 'r50','r101','r152',
                                           'sq101',
                                           'x50', 'x101',
@@ -397,20 +399,20 @@ if __name__ == '__main__':
     ###
     final_model = copy.deepcopy(model.state_dict())
     if params.save_final:
-        save_model(model,"final", params.output, fold=params.fold, folds=params.folds)
+        save_model(model,"final", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
 
     if len(validation)>0 and params.save_best:
         model.load_state_dict(best_model_acc)
-        save_model(model,"best_acc", params.output, fold=params.fold, folds=params.folds)
+        save_model(model,"best_acc", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
         
         model.load_state_dict(best_model_tpr)
-        save_model(model,"best_tpr", params.output, fold=params.fold, folds=params.folds)
+        save_model(model,"best_tpr", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
             
         model.load_state_dict(best_model_tnr)
-        save_model(model,"best_tnr", params.output, fold=params.fold, folds=params.folds)
+        save_model(model,"best_tnr", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
         
         model.load_state_dict(best_model_auc)
-        save_model(model,"best_auc", params.output, fold=params.fold, folds=params.folds)
+        save_model(model,"best_auc", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
 
     testing_final={}
     testing_best_acc={}
