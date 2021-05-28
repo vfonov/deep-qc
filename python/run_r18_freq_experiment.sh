@@ -1,11 +1,12 @@
 #! /bin/bash
 
 
-for m in r18,20,196 ;do
+for m in r18,30,196 ;do
  i=( ${m//,/ } )
  if [ ! -e model_${i[0]}_ref_long/final.pth ];then
 
   python aqc_training.py \
+      --save_final \
       --freq 200 \
       --lr 0.0001 --warmup_iter 100 \
       --clip 1.0 \
