@@ -5,7 +5,6 @@ lr=0.0001
 pfx=lr_${lr}_pre
 mkdir -p $pfx
 
-# sq101,20,128
 for m in r152,10,32 ;do
  i=( ${m//,/ } )
  for f in $(seq 0 $((${FOLDS}-1)) );do
