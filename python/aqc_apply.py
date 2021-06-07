@@ -73,7 +73,7 @@ if __name__ == '__main__':
     if params.load is None:
         params.load = default_data_dir + os.sep \
             + 'model_' + params.net + ('_ref' if params.ref else '') + os.sep + \
-            ( 'best_tnr.pth' if params.gpu else 'best_tnr_cpu.pth' )
+            'best_tnr.pth' # if params.gpu else 'best_tnr_cpu.pth' )
     
     model = get_qc_model(params,use_ref=use_ref)
     if params.gpu:

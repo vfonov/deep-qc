@@ -3,7 +3,7 @@ library(jsonlite)
 
 cv<-data.frame()
 
-models=c('r101','r50','r34','r18') # 'r152',
+models=c('r152','r101','r50','r34','r18')
 
 # all these are pretrained
 for(lr_ in c('0.0001')) {
