@@ -16,7 +16,7 @@ import math
 from torch.utils.data import Dataset, DataLoader
 
 QC_entry = collections.namedtuple( 
-    'QC_entry', ['id', 'status', 'qc_files', 'variant', 'cohort', 'subject', 'visit' ] )
+    'QC_entry', ['id', 'status', 'qc_files', 'variant', 'cohort', 'subject', 'visit', 'dist' ] )
 
 
 def load_full_db(qc_db_path, 
@@ -28,13 +28,13 @@ def load_full_db(qc_db_path,
     import sqlite3
 
     with sqlite3.connect( qc_db_path ) as qc_db:
-        query = f"select variant,cohort,subject,visit,path,xfm,pass from {table}"
+        query = f"select q.variant,q.cohort,q.subject,q.visit,q.path,q.xfm,q.pass,d.lin from {table} as q left join xfm_dist as d on q.variant=d.variant and q.cohort=d.cohort and q.subject=d.subject and q.visit=d.visit and q.N=d.N"
 
         samples = []
         subjects = []
 
         for line in qc_db.execute(query):
-            variant, cohort, subject, visit, path, xfm, _pass = line
+            variant, cohort, subject, visit, path, xfm, _pass, dist = line
 
             if _pass == 'TRUE': status=1 
             else: status=0 
@@ -51,7 +51,7 @@ def load_full_db(qc_db_path,
                     qc_files. append(qc_file)
 
             if len(qc_files)==feat:
-                samples.append( QC_entry( _id, status, qc_files, variant, cohort, subject, visit ))
+                samples.append( QC_entry( _id, status, qc_files, variant, cohort, subject, visit, dist ))
         
         return samples
 
