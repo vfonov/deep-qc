@@ -12,3 +12,7 @@ pp
 avg.model
 ants
 aug
+qc_db.sqlite3
+adni_info.sqlite3
+dist
+pp_graph
