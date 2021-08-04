@@ -266,7 +266,7 @@ class ResNetQC(nn.Module):
         return self._forward_impl(x)
 
 
-    def load_from_std(self, std_model):
+    def load_from_std(self, std_model: models.ResNet ):
         # import weights from the standard ResNet model
         # TODO: finish
         # first load all standard items
@@ -308,7 +308,7 @@ def _resnet_qc(
     return ResNetQC(block, layers, **kwargs)
 
 
-def resnet_qc_18(pretrained: bool=False, progress: bool = True, **kwargs) -> ResNetQC:
+def resnet_qc_18(pretrained: bool = False, progress: bool = True, **kwargs) -> ResNetQC:
     """Constructs a ResNet-18 model.
 
     Args:

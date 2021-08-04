@@ -22,13 +22,22 @@ QC_entry = collections.namedtuple(
 def load_full_db(qc_db_path, 
                 data_prefix, 
                 validate_presence=False, 
-                feat=3, table="qc_all"):
+                feat=3, table="qc_all", 
+                use_variant_dist=None):
     """Load complete QC database into memory
     """
     import sqlite3
 
     with sqlite3.connect( qc_db_path ) as qc_db:
-        query = f"select q.variant,q.cohort,q.subject,q.visit,q.path,q.xfm,q.pass,d.lin from {table} as q left join xfm_dist as d on q.variant=d.variant and q.cohort=d.cohort and q.subject=d.subject and q.visit=d.visit and q.N=d.N"
+
+        query = f"""select q.variant,q.cohort,q.subject,q.visit,q.path,q.xfm,q.pass,d.lin 
+            from {table} as q left join xfm_dist as d on q.variant=d.variant and q.cohort=d.cohort and q.subject=d.subject and q.visit=d.visit and q.N=d.N"""
+
+        if use_variant_dist is not None:
+            if use_variant_dist:
+                query+=" where q.variant = \"dist\""
+            else:
+                query+=" where q.variant != \"dist\""
 
         samples = []
         subjects = []
@@ -50,8 +59,8 @@ def load_full_db(qc_db_path,
                 else:
                     qc_files. append(qc_file)
 
-            if len(qc_files)==feat:
-                samples.append( QC_entry( _id, status, qc_files, variant, cohort, subject, visit, dist ))
+            if len(qc_files) == feat:
+                samples.append( QC_entry( _id, status, qc_files, variant, cohort, subject, visit, float(dist) ))
         
         return samples
 
@@ -217,7 +226,7 @@ class QCDataset(Dataset):
         else:
             _images = torch.cat( _images )
         
-        return {'image':_images, 'status':_s[1], 'id':_s.id}
+        return {'image':_images, 'status': _s.status, 'id':_s.id, 'dist': _s.dist }
 
     def n_subjects(self):
         """

@@ -1,7 +1,7 @@
 digraph hierarchy{
     graph[rankdir=UD, center=false, margin=0.0, nodesep=0.1, ranksep=0.2]
     node[fontname="Courier", fontsize=9, fixedsize=false]
-    edge[arrowsize=0.6, arrowhead=vee, fontname="Courier", fontsize=12]
+    edge[arrowsize=0.6, arrowhead=vee, fontname="Ubuntu", fontsize=9]
     
     Input_1;Ref_1;
     Input_2;Ref_2;
@@ -16,23 +16,27 @@ digraph hierarchy{
     
     REUSE[label="Reuse Parameters"; shape="none";width=0.1;height=0.1];
     
-    NET[label="DNN0: ImageNet pre-trained DNN"; shape="doubleoctagon"];
+    NET[label="DNN0: ImageNet pre-trained ResNet"; shape="doubleoctagon"];
     
     {rank=same;  NET  REUSE}
 
-    Linear_1[label="Concatenate Features";shape="box"]; 
+    Linear_1[label="Concatenate\nOutputs";shape="box"]; 
     
-    CONV_1[label="Convolution"]; 
-    CONV_2[label="Convolution"];
-    CONV_3[label="Convolution"];
+    CONV_1[label="Conv 1x1"]; 
+    CONV_2[label="Conv 1x1"];
+    CONV_3[label="Conv 7x7"];
+    CONV_4[label="Conv 1x1"];
+
     ReLU_1[label="ReLU"];
     ReLU_2[label="ReLU"];
     ReLU_3[label="ReLU"];
+    ReLU_4[label="ReLU"];
     
     Dropout[shape=box];
     
     Linear_2[label="Linear"];
-    Output[shape=ellipse;label="Softmax Output: Pass/Fail"];
+    Output_CLS[shape=ellipse;label="Softmax Output\nPass/Fail",color="red"];
+    Output_MSE[shape=ellipse;label="Distance Output",style="dashed",color="blue"];
     
     Input_1[shape=ellipse; label="Input 1"];
     Input_2[shape=ellipse; label="Input 2"];
@@ -44,28 +48,37 @@ digraph hierarchy{
     
     {rank=same; Input_1 Ref_1 Input_2 Ref_2 Input_3 Ref_3}
     
-    Input_1 -> NET; Ref_1 -> NET[style="dotted"];
+    Input_1 -> NET[weight=10]; Ref_1 -> NET[style="dotted"];
     Input_2 -> NET; Ref_2 -> NET[style="dotted"];
     Input_3 -> NET; Ref_3 -> NET[style="dotted"];
     
-    Linear_1  -> CONV_1[label="BN"];
+    Linear_1  -> CONV_1[label="X*F*512"];
     CONV_1    -> ReLU_1[label="BN"];
     
-    ReLU_1    -> CONV_2[label="BN"];
+    ReLU_1    -> CONV_2[label="X*512"];
     CONV_2    -> ReLU_2[label="BN"];
     
-    ReLU_2    -> CONV_3[label="BN"];
+    ReLU_2    -> CONV_3[label="32"];
     CONV_3    -> ReLU_3[label="BN"];
+
+    ReLU_3    -> CONV_4[label="32"];
+    CONV_4    -> ReLU_4[label="BN"];
     
-    ReLU_3    -> Dropout;
+    ReLU_4    -> Dropout[label="32"];
     Dropout   -> Linear_2;
-    Linear_2  -> Output;
+
+    Linear_2  -> Output_CLS[label="2",color="red"];
+    Linear_2  -> Output_MSE[label="1",style="dashed",color="blue"];
     
     /*Just for layout*/
-    /*Linear_1 -> Input_1[style="invis";weight=10]; */
-    CONV_3   -> Linear_1[style="invis";weight=10];
-    
-    {rank=same; Linear_1 CONV_1 ReLU_1 CONV_2   }
-    {rank=same; ReLU_2 CONV_3 ReLU_3 Dropout Linear_2  }
-    {rank=same; Output }
+    Linear_1   -> ReLU_2[style="invis";weight=10];
+    Dropout   -> ReLU_2[style="invis";weight=10];
+    /**/
+
+    {rank=same; Linear_1 CONV_1 ReLU_1 CONV_2 }
+    {rank=same; ReLU_2 CONV_3 ReLU_3 ReLU_4 CONV_4 }  
+    {rank=same; Dropout Linear_2  }
+
+    /* alternative outputs */
+    subgraph {rank=same; Output_CLS Output_MSE }
 }

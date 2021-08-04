@@ -13,11 +13,10 @@ for m in r18,10,196 ;do
       --lr $lr --warmup_iter 100 \
       --clip 1.0 \
       --l2 0.0 \
-      --balance \
       --adam \
       --ref --fold $f --pretrained \
-      --folds $FOLDS --net ${i[0]} \
+      --folds $FOLDS --net ${i[0]} --dist \
       --n_epochs ${i[1]} --batch_size ${i[2]}  \
-      $pfx/model_${i[0]}_ref --ref 2>&1 |tee $pfx/log_ref_${i[0]}${f}_${FOLDS}.txt
+      $pfx/model_dist_${i[0]}_ref --ref 2>&1 |tee $pfx/log_ref_${i[0]}${f}_${FOLDS}.txt
  done
 done

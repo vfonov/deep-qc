@@ -21,7 +21,7 @@ from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
 
-def run_validation_testing_loop(dataloader, model, loss_fn=nn.functional.cross_entropy,details=False ):
+def run_validation_testing_loop(dataloader, model, loss_fn=nn.functional.cross_entropy, details=False,predict_dist=False ):
     """
     Run Validation/Testing loop
     return validation_dict, validation_log
@@ -32,6 +32,7 @@ def run_validation_testing_loop(dataloader, model, loss_fn=nn.functional.cross_e
     _preds  = np.zeros(0,dtype='int')
     _labels = np.zeros(0,dtype='int')
     _scores = np.zeros(0)
+    _dist   = np.zeros(0)
 
     val_loss  = 0.0
     from sklearn.metrics import accuracy_score
@@ -44,57 +45,74 @@ def run_validation_testing_loop(dataloader, model, loss_fn=nn.functional.cross_e
             labels = v_sample_batched['status'].cuda()
 
             outputs=model(inputs)
-            loss = loss_fn(outputs, labels)
-            outputs = nn.functional.softmax(outputs,1)
-            _, preds = torch.max(outputs, 1)
+            if predict_dist:
+                dist = v_sample_batched['dist'].float().cuda()
+                outputs=outputs.squeeze(1)
+                loss = loss_fn(outputs, dist)
+            else:
+                loss = loss_fn(outputs, labels)
 
+            if predict_dist:
+                _preds = np.concatenate((_preds, outputs.cpu().numpy()))
+                _dist  = np.concatenate((_dist,  dist.cpu().numpy()))
+            else:
+                outputs = nn.functional.softmax(outputs,1)
+                _, preds = torch.max(outputs, 1)
+                _preds =np.concatenate((_preds,  preds.cpu().numpy()))
+                _scores=np.concatenate((_scores,outputs[:,1].cpu().numpy()))
+
+            _labels=np.concatenate((_labels,labels.cpu().numpy()))
             val_loss += float(loss) * inputs.size(0)
-
             ids.extend(v_sample_batched['id'])
 
-            _preds =np.concatenate((_preds,  preds.cpu().numpy()))
-            _labels=np.concatenate((_labels,labels.cpu().numpy()))
-            _scores=np.concatenate((_scores,outputs[:,1].cpu().numpy()))
 
         # (?)
         val_loss /= len(ids)
 
-        _ap   = float(np.sum( (_labels == 1)))
-        _an   = float(np.sum( (_labels == 0)))
+        res['summary'] = { 'loss': val_loss }
 
-        # calculating true positive and true negative
-        _tpr = float(np.sum( (_preds == 1)*(_labels==1)))
-        _tnr = float(np.sum( (_preds == 0)*(_labels==0)))
+        if not predict_dist:
+            _ap   = float(np.sum( (_labels == 1)))
+            _an   = float(np.sum( (_labels == 0)))
 
-        if _ap>0:
-            _tpr  /= _ap
-        else:
-            _tpr = 0.0
+            # calculating true positive and true negative
+            _tpr = float(np.sum( (_preds == 1)*(_labels==1)))
+            _tnr = float(np.sum( (_preds == 0)*(_labels==0)))
 
-        if _an>0:
-            _tnr  /= _an
-        else:
-            _tnr = 0.0
+            if _ap>0:
+                _tpr  /= _ap
+            else:
+                _tpr = 0.0
 
-        prec,recall,fbeta,_ = precision_recall_fscore_support(_labels,_preds,average='binary')
+            if _an>0:
+                _tnr  /= _an
+            else:
+                _tnr = 0.0
 
-        res['summary'] = { 'loss': val_loss,
-                            'acc': accuracy_score(_labels,_preds),
-                            'prec': prec,
-                            'F': fbeta,
-                            'recall': recall,
-                            'auc': roc_auc_score(_labels,_scores),
-                            'tpr': _tpr,
-                            'tnr': _tnr
-                        }
+            prec,recall,fbeta,_ = precision_recall_fscore_support(_labels,_preds,average='binary')
+            res['summary'].update(
+                { 
+                    'acc': accuracy_score(_labels, _preds),
+                    'prec': prec,
+                    'F': fbeta,
+                    'recall': recall,
+                    'auc': roc_auc_score(_labels,_scores),
+                    'tpr': _tpr,
+                    'tnr': _tnr
+                } )
+
         
         if details:
             res['details'] = {
                 'ids':ids,
                 'preds':_preds.tolist(),
                 'labels':_labels.tolist(),
-                'scores':_scores.tolist()
+                'dist': _dist.tolist()
             }
+            if not predict_dist:
+                res['details'].update({
+                    'scores':_scores.tolist()
+                })
     return res
 
 
@@ -155,6 +173,8 @@ def parse_options():
                         help="Apply l2 regularization")
     parser.add_argument("--balance",action="store_true",default=False,
                         help="Balance validation and testing sample")
+    parser.add_argument("--dist",action="store_true",default=False,
+                        help="Predict misregistration distance instead of class membership")
 
     params = parser.parse_args()
     
@@ -170,11 +190,15 @@ if __name__ == '__main__':
     init_lr = params.lr
     warmup_lr = params.warmup_lr
     warmup_iter = params.warmup_iter
+    predict_dist = params.dist
     
     all_samples_main = load_full_db(data_prefix + os.sep + db_name, 
                    data_prefix, True, table="qc_all")
+
+    # if distance training is required 
     all_samples_aug = load_full_db(data_prefix + os.sep + db_name, 
-                   data_prefix, True, table="qc_all_aug")
+                   data_prefix, True, table="qc_all_aug",
+                   use_variant_dist=params.dist )
 
     print("Main samples: {}".format(len(all_samples_main)))
     print("Aug  samples: {}".format(len(all_samples_aug)))
@@ -212,7 +236,8 @@ if __name__ == '__main__':
                           drop_last=False)
 
     model = get_qc_model(params, use_ref=params.ref, 
-                        pretrained=params.pretrained)
+                        pretrained=params.pretrained,
+                        predict_dist=predict_dist)
 
     model = model.cuda()
     #criterion = nn.CrossEntropyLoss()
@@ -228,10 +253,11 @@ if __name__ == '__main__':
 
     global_ctr = 0
 
-    best_model_acc = copy.deepcopy(model.state_dict())
-    best_model_tpr = copy.deepcopy(model.state_dict())
-    best_model_tnr = copy.deepcopy(model.state_dict())
-    best_model_auc = copy.deepcopy(model.state_dict())
+    best_model_acc  = copy.deepcopy(model.state_dict())
+    best_model_tpr  = copy.deepcopy(model.state_dict())
+    best_model_tnr  = copy.deepcopy(model.state_dict())
+    best_model_auc  = copy.deepcopy(model.state_dict())
+    best_model_loss = copy.deepcopy(model.state_dict())
 
     best_acc = 0.0
     best_acc_epoch = -1
@@ -248,6 +274,11 @@ if __name__ == '__main__':
     best_auc = 0.0
     best_auc_epoch = -1
     best_auc_ctr = -1
+
+    best_loss = 1e10
+    best_loss_epoch = -1
+    best_loss_ctr = -1
+
 
     training_log = []
     validation_log = []
@@ -268,16 +299,25 @@ if __name__ == '__main__':
                         g[ 'lr' ] = init_lr
 
             inputs = sample_batched['image'].cuda()
-            labels = sample_batched['status'].cuda()
+            if predict_dist:
+                dist = sample_batched['dist'].float().cuda()
+            else:
+                labels = sample_batched['status'].cuda()
 
             # zero the parameter gradients
             optimizer.zero_grad()
 
             # forward
             outputs = model(inputs)
-            with torch.no_grad():
-                _, preds = torch.max(outputs.data, 1)
-            loss = nn.functional.cross_entropy(outputs, labels)
+            if predict_dist:
+
+                outputs=outputs.squeeze(1)
+                preds = outputs.data
+                loss = nn.functional.mse_loss(outputs, dist)
+            else:
+                with torch.no_grad():
+                    _, preds = torch.max(outputs.data, 1)
+                loss = nn.functional.cross_entropy(outputs, labels)
 
             if regularize_l2>0.0:
                 l2_norm = model_param_norm(model , 2)
@@ -293,12 +333,14 @@ if __name__ == '__main__':
 
             optimizer.step()
 
-            batch_loss = loss.data.item() * inputs.size(0)
-            batch_acc  = torch.sum(preds == labels.data).item()
+            batch_loss = loss.data.item()
 
-            log={'loss': batch_loss/inputs.size(0),
-                 'acc':  batch_acc/inputs.size(0),
+            log={'loss': batch_loss,
                  'grad':float(grad_log)}
+
+            if not predict_dist:
+                batch_acc  = torch.sum(preds == labels.data).item()
+                log['acc'] = batch_acc/inputs.size(0)
             # training stats
             writer.add_scalars('{}/training'.format(params.output),
                                 log, global_ctr)
@@ -310,9 +352,75 @@ if __name__ == '__main__':
                   (global_ctr%params.freq)==0 and \
                   len(validation)>0:
                 model.train(False)
-                val_info = run_validation_testing_loop(validation_dataloader,model,details=False)
+                val_info = run_validation_testing_loop(validation_dataloader, model, 
+                    loss_fn = nn.functional.mse_loss if predict_dist else nn.functional.cross_entropy,
+                    predict_dist=predict_dist,
+                    details=False)
+
                 val = val_info['summary']
                 
+                if predict_dist:
+                    if val['loss'] < best_loss:
+                            best_loss = val['loss']
+                            best_loss_epoch = epoch
+                            best_loss_ctr = global_ctr
+                            best_model_loss = copy.deepcopy(model.state_dict())
+                else:
+                    if val['acc'] > best_acc:
+                            best_acc = val['acc']
+                            best_acc_epoch = epoch
+                            best_acc_ctr = global_ctr
+                            best_model_acc = copy.deepcopy(model.state_dict())
+
+                    if val['tpr'] > best_tpr:
+                            best_tpr = val['tpr']
+                            best_tpr_epoch = epoch
+                            best_tpr_ctr = global_ctr
+                            best_model_tpr = copy.deepcopy(model.state_dict())
+
+                    if val['tnr'] > best_tnr:
+                            best_tnr = val['tnr']
+                            best_tnr_epoch = epoch
+                            best_tnr_ctr = global_ctr
+                            best_model_tnr = copy.deepcopy(model.state_dict())
+
+                    if val['auc'] > best_auc:
+                            best_auc = val['auc']
+                            best_auc_epoch = epoch
+                            best_auc_ctr = global_ctr
+                            best_model_auc = copy.deepcopy(model.state_dict())
+                
+                writer.add_scalars('{}/validation'.format(params.output), 
+                                    val,
+                                    global_ctr)
+
+                val['epoch']=epoch
+                val['ctr']=global_ctr
+                validation_log.append(val)
+                model.train(True)
+
+            training_log.append(log)
+            global_ctr += 1
+
+        model.train(False)  # Set model to evaluation mode
+        # run validation at the end of epoch
+        if len(validation)>0:
+            val_info = run_validation_testing_loop(validation_dataloader,model,details=False,
+                    loss_fn = nn.functional.mse_loss if predict_dist else nn.functional.cross_entropy,
+                    predict_dist=predict_dist,
+            )
+            val = val_info['summary']
+
+            if not params.adam:
+                scheduler.step()
+            
+            if predict_dist:
+                if val['loss'] < best_loss:
+                        best_loss = val['loss']
+                        best_loss_epoch = epoch
+                        best_loss_ctr = global_ctr
+                        best_model_loss = copy.deepcopy(model.state_dict())
+            else:
                 if val['acc'] > best_acc:
                         best_acc = val['acc']
                         best_acc_epoch = epoch
@@ -336,51 +444,6 @@ if __name__ == '__main__':
                         best_auc_epoch = epoch
                         best_auc_ctr = global_ctr
                         best_model_auc = copy.deepcopy(model.state_dict())
-                
-                writer.add_scalars('{}/validation'.format(params.output), 
-                                    val,
-                                    global_ctr)
-
-                val['epoch']=epoch
-                val['ctr']=global_ctr
-                validation_log.append(val)
-                model.train(True)
-
-            training_log.append(log)
-            global_ctr += 1
-
-        model.train(False)  # Set model to evaluation mode
-        # run validation at the end of epoch
-        if len(validation)>0:
-            val_info = run_validation_testing_loop(validation_dataloader,model,details=False)
-            val = val_info['summary']
-
-            if not params.adam:
-                scheduler.step()
-            
-            if val['acc'] > best_acc:
-                    best_acc = val['acc']
-                    best_acc_epoch = epoch
-                    best_acc_ctr = global_ctr
-                    best_model_acc = copy.deepcopy(model.state_dict())
-
-            if val['tpr'] > best_tpr:
-                    best_tpr = val['tpr']
-                    best_tpr_epoch = epoch
-                    best_tpr_ctr = global_ctr
-                    best_model_tpr = copy.deepcopy(model.state_dict())
-
-            if val['tnr'] > best_tnr:
-                    best_tnr = val['tnr']
-                    best_tnr_epoch = epoch
-                    best_tnr_ctr = global_ctr
-                    best_model_tnr = copy.deepcopy(model.state_dict())
-
-            if val['auc'] > best_auc:
-                    best_auc = val['auc']
-                    best_auc_epoch = epoch
-                    best_auc_ctr = global_ctr
-                    best_model_auc = copy.deepcopy(model.state_dict())
             
             writer.add_scalars('{}/validation_epoch'.format(params.output), 
                                 val,
@@ -390,35 +453,43 @@ if __name__ == '__main__':
             val['ctr']=global_ctr
             validation_log.append(val)
 
-            print('Epoch: {} Validation Loss: {:.4f} ACC:{:.4f} TPR:{:.4f} TNR:{:.4f} AUC:{:.4f}'.\
+            if predict_dist:
+                print('Epoch: {} Validation Loss: {:.4f}'.\
+                    format(epoch, val['loss']))
+            else:
+                print('Epoch: {} Validation Loss: {:.4f} ACC:{:.4f} TPR:{:.4f} TNR:{:.4f} AUC:{:.4f}'.\
                     format(epoch, val['loss'], val['acc'], val['tpr'], val['tnr'],val['auc']))
         else:
             print('Epoch: {} no validation'.format(epoch))
-
-
+            
     ###
     final_model = copy.deepcopy(model.state_dict())
     if params.save_final:
         save_model(model,"final", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
 
     if len(validation)>0 and params.save_best:
-        model.load_state_dict(best_model_acc)
-        save_model(model,"best_acc", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
-        
-        model.load_state_dict(best_model_tpr)
-        save_model(model,"best_tpr", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
+        if predict_dist:
+            model.load_state_dict(best_model_loss)
+            save_model(model,"best_loss", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
+        else:
+            model.load_state_dict(best_model_acc)
+            save_model(model,"best_acc", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
             
-        model.load_state_dict(best_model_tnr)
-        save_model(model,"best_tnr", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
-        
-        model.load_state_dict(best_model_auc)
-        save_model(model,"best_auc", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
+            model.load_state_dict(best_model_tpr)
+            save_model(model,"best_tpr", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
+                
+            model.load_state_dict(best_model_tnr)
+            save_model(model,"best_tnr", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
+            
+            model.load_state_dict(best_model_auc)
+            save_model(model,"best_auc", params.output, fold=params.fold, folds=params.folds, cpu=params.save_cpu)
 
     testing_final={}
     testing_best_acc={}
     testing_best_tpr={}
     testing_best_tnr={}
     testing_best_auc={}
+    testing_best_loss={}
 
     if len(testing)>0:
         print("Testing...")
@@ -431,20 +502,28 @@ if __name__ == '__main__':
         with torch.no_grad():
 
             model.load_state_dict(final_model)
-            testing_final = run_validation_testing_loop(testing_dataloader, model, details=True)
+            testing_final = run_validation_testing_loop(testing_dataloader, model, details=True,
+                        loss_fn = nn.functional.mse_loss if predict_dist else nn.functional.cross_entropy,
+                        predict_dist=predict_dist)
 
             if len(validation)>0:
-                model.load_state_dict(best_model_acc)
-                testing_best_acc = run_validation_testing_loop(testing_dataloader, model, details=True)
+                if predict_dist:
+                    model.load_state_dict(best_model_loss)
+                    testing_best_loss = run_validation_testing_loop(testing_dataloader, model, details=True,
+                        loss_fn = nn.functional.mse_loss,
+                        predict_dist=predict_dist)
+                else:
+                    model.load_state_dict(best_model_acc)
+                    testing_best_acc = run_validation_testing_loop(testing_dataloader, model, details=True)
 
-                model.load_state_dict(best_model_auc)
-                testing_best_auc = run_validation_testing_loop(testing_dataloader, model, details=True)
+                    model.load_state_dict(best_model_auc)
+                    testing_best_auc = run_validation_testing_loop(testing_dataloader, model, details=True)
 
-                model.load_state_dict(best_model_tpr)
-                testing_best_tpr = run_validation_testing_loop(testing_dataloader, model, details=True)
+                    model.load_state_dict(best_model_tpr)
+                    testing_best_tpr = run_validation_testing_loop(testing_dataloader, model, details=True)
 
-                model.load_state_dict(best_model_tnr)
-                testing_best_tnr = run_validation_testing_loop(testing_dataloader, model, details=True)
+                    model.load_state_dict(best_model_tnr)
+                    testing_best_tnr = run_validation_testing_loop(testing_dataloader, model, details=True)
 
 
     if not os.path.exists(params.output):
@@ -506,5 +585,6 @@ if __name__ == '__main__':
                 'testing_best_acc': testing_best_acc,
                 'testing_best_auc': testing_best_auc,
                 'testing_best_tpr': testing_best_tpr,
-                'testing_best_tnr': testing_best_tnr
+                'testing_best_tnr': testing_best_tnr,
+                'testing_best_loss': testing_best_loss
             }, f  )

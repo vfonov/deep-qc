@@ -50,7 +50,7 @@ online_m <- online %>% gather(`acc`,`auc`,`tpr`,`tnr`, key='measure', value='sco
 p1<-ggplot(online_m,aes(y=score, x=f_epoch, color=model))+
     theme_bw(base_size = 16)+
     facet_wrap(~measure,ncol=2)+
-    geom_smooth(se = FALSE)+
+    geom_smooth(se = FALSE,method='loess')+
     xlab('Epoch')+
     ggtitle("Online validation (balanced)")
 
