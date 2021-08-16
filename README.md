@@ -1,10 +1,12 @@
 # DEEP QC
 
-Code for the paper Vladimir S. Fonov, Mahsa Dadar, The PREVENT-AD Research Group, D. Louis Collins **"Deep learning of quality control for stereotaxic registration of human brain MRI"** https://doi.org/10.1101/303487 
+Code for the paper Vladimir S. Fonov, Mahsa Dadar, The PREVENT-AD Research Group, D. Louis Collins **"DARQ: Deep learning of quality control for stereotaxic registration of human brain MRI"**.
+
+*Updated version of the previosly available ["Deep learning of quality control for stereotaxic registration of human brain MRI"](https://doi.org/10.1101/303487)*
 
 ## Installation (Python version) using *conda* for inference
 
-* CPU version 
+* CPU version
     ```
     conda install pytorch-cpu==1.7.1 torchvision==0.8.2 cpuonly -c pytorch 
     conda install scikit-image
@@ -44,16 +46,11 @@ Code for the paper Vladimir S. Fonov, Mahsa Dadar, The PREVENT-AD Research Group
     * `aqc_training.py` - deep nearal net training script
     * `model/resnet_qc.py` - module with ResNET implementation, based on https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
     * `model/util.py` - various helper functions
+    * `*.R` - R scripts to generete figures for the paper
 * Image files:
     * `mni_icbm152_t1_tal_nlin_sym_09c_0.jpg`,`mni_icbm152_t1_tal_nlin_sym_09c_1.jpg`,`mni_icbm152_t1_tal_nlin_sym_09c_2.jpg` - reference slices, needed for both training and running pretrained model
-* `results` - directory with outputs, containes pre-trained models
-* `data` - RAW and intermediate datafiles will be placed are here
-* R scripts:
-  * `aqc_analysis.R` - Draw Figure 5,6,7
-  * `aqc_analysis_one_long.R`  - Draw Figure 4
-  * `aqc_analysis_r18_ref.R`  - Draw Figure 8
-  * `summary.R`  - calculate summary stats 
-  * `multiplot.R` - internal module for making stacked plots in ggplot
+* `results` - figures for the paper
+* `data` - training data and reference image
 
 ## Validating correct operation (requires minc-toolkit and minc2_simple python module)
 
