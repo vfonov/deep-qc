@@ -36,12 +36,12 @@ Code for the paper Vladimir S. Fonov, Mahsa Dadar, The PREVENT-AD Research Group
 ## Files
 
 * Shell scripts:
-    * `download_minimal_results.sh`  - download pretrained model to run automatic qc
-    * `make_figures.sh`  - Draw Figure 2 and 3 for the paper
+    * `download_minimal_models.sh`  - download QCResNET-18 with reference pretrained model to run automatic qc (43mb)
+    * `download_all_models.sh`  - download all pretrained models to run automatic qc 
 * Directory `python`:
     * `run_all_experiments.sh` - run experiments with different versions of ResNet and SquezeNet
     * `aqc_apply.py` - apply pre-trained network
-    * `aqc_convert_to_cpu.py`- helper script to convert network from GPU to CPU 
+    * `aqc_convert_to_cpu.py`- helper script to convert network from GPU to CPU
     * `aqc_data.py` - module to load QC data
     * `aqc_training.py` - deep nearal net training script
     * `model/resnet_qc.py` - module with ResNET implementation, based on https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
@@ -50,7 +50,7 @@ Code for the paper Vladimir S. Fonov, Mahsa Dadar, The PREVENT-AD Research Group
 * Image files:
     * `mni_icbm152_t1_tal_nlin_sym_09c_0.jpg`,`mni_icbm152_t1_tal_nlin_sym_09c_1.jpg`,`mni_icbm152_t1_tal_nlin_sym_09c_2.jpg` - reference slices, needed for both training and running pretrained model
 * `results` - figures for the paper
-* `data` - training data and reference image
+* `data` - reference images
 
 ## Validating correct operation (requires minc-toolkit and minc2_simple python module)
 
