@@ -1,6 +1,7 @@
 #! /bin/bash
 
 lr=0.0001
+mkdir -p cls
 
 # train with reference
 for m in \
@@ -19,7 +20,7 @@ for m in \
       param=''
     fi
 
-    out=model_${i[0]}${suff}
+    out=cls/model_${i[0]}${suff}
     if [ ! -e $out/final.pth ];then
     mkdir -p $out
     python aqc_training.py \

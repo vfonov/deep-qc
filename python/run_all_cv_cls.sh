@@ -2,7 +2,7 @@
 
 FOLDS=8
 lr=0.0001
-pfx=pre_distance/lr_${lr}_pre
+pfx=cls/lr_${lr}_pre
 mkdir -p $pfx
 
 for m in r18,10,196 r34,10,128 r50,10,80 r101,10,48 r152,10,32 ;do

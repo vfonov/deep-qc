@@ -20,7 +20,7 @@ models=c('r152','r101','r50','r34','r18')
 for(m in models)
 {
 # validation stats
-    r<-fromJSON(paste0('pre_distance/model_',m,'_ref_long/log_0_8.json'))
+    r<-fromJSON(paste0('cls/model_',m,'_ref_long/log_0_8.json'))
     val<-r$validation
     # convert minibatches to fractional epoch
     sc<-val%>%summarize(epoch=max(epoch),minibatch=max(ctr))%>%transmute(sc=epoch/minibatch)

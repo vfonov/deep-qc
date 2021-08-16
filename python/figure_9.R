@@ -7,7 +7,7 @@ cv_cls<-data.frame()
 models=c('r18')
 # all these are pretrained
 for(lr_ in c('0.0001')) {
-    pfx=paste0('pre_distance/lr_',lr_,'_pre/')
+    pfx=paste0('cls/lr_',lr_,'_pre/')
     for(v in models) {
         for(r in c('_ref')) {
             for(f in seq(0,7)) {
