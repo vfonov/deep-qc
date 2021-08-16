@@ -31,13 +31,13 @@ def parse_options():
 
     parser.add_argument("--ref", action="store_true", default=False,
                         help="Use reference images")
-    parser.add_argument("--image", type=str, 
+    parser.add_argument("--image", type=str,
                         help="Input image prefix: <prefix>_{0,1,2}.jpg")
-    parser.add_argument("--volume", type=str, 
+    parser.add_argument("--volume", type=str,
                         help="Input minc volume (need minc2 simple)")
-    parser.add_argument("--resample", type=str, 
+    parser.add_argument("--resample", type=str,
                         help="Resample to standard space using provided xfm, needs mincresample")
-    parser.add_argument("--low", type=float, 
+    parser.add_argument("--low", type=float,
                         help="Winsorize intensities in the input image", default=5.0)
     parser.add_argument("--high", type=float, 
                         help="Winsorize intensities in the input image", default=95.0)
@@ -73,11 +73,17 @@ if __name__ == '__main__':
     params = parse_options()
     use_ref = params.ref
 
+
     if params.load is None:
         params.load = default_data_dir + os.sep \
+            + ('dist' if params.dist else 'cls')+os.sep \
             + 'model_' + params.net + ('_ref' if params.ref else '') + os.sep + \
             'best_tnr.pth' # if params.gpu else 'best_tnr_cpu.pth' )
-    
+
+    if not os.path.exists(params.load):
+       print("Missing model:",params.load,file=sys.stderr)
+       exit(100)
+
     model = get_qc_model(params, use_ref=use_ref, predict_dist=params.dist)
     model.train(False)
 
@@ -91,16 +97,16 @@ if __name__ == '__main__':
                 dataset = MincVolumesDataset(csv_file=params.batch,
                     winsorize_low=params.low,
                     winsorize_high=params.high,
-                    data_prefix=default_data_dir + "../data",
-                    use_ref=use_ref) 
+                    data_prefix=default_data_dir + "/../data",
+                    use_ref=use_ref)
             else:
                 dataset = QCImagesDataset(csv_file=params.batch,
                             data_prefix=default_data_dir + "/../data",
                             use_ref=use_ref)
-            
-            dataloader = DataLoader(dataset, 
+
+            dataloader = DataLoader(dataset,
                             batch_size=params.batch_size,
-                            shuffle=False, 
+                            shuffle=False,
                             num_workers=params.batch_workers)
 
             for i_batch, sample_batched in enumerate(dataloader):
@@ -140,8 +146,8 @@ if __name__ == '__main__':
                     try:
                         args=['mincresample', '-q' ,'-transform',params.resample,
                             '-dircos', '1' ,'0', '0','0', '1', '0', '0', '0', '1', 
-                            '-step', '1', '1', '1', 
-                            '-start', '-96', '-132', '-78', 
+                            '-step', '1', '1', '1',
+                            '-start', '-96', '-132', '-78',
                             '-nelements', '193', '229', '193', params.volume, tmp_vol,'-tfm_input_sampling']
                         subprocess.check_call(args)
                     except:
@@ -152,13 +158,20 @@ if __name__ == '__main__':
                 if tmpdir is not None:
                     shutil.rmtree(tmpdir)
             else:
-                print("Specify input volume or image prefix or batch list")
+                print("Specify input volume or image prefix or batch list, see help with --help",file=sys.stderr)
                 exit(1)
+            
+            if use_ref:
+               ref_inputs = load_qc_images(
+                           [ default_data_dir + "/../data/" + "mni_icbm152_t1_tal_nlin_sym_09c_0.jpg",
+                             default_data_dir + "/../data/" + "mni_icbm152_t1_tal_nlin_sym_09c_1.jpg",
+                             default_data_dir + "/../data/" + "mni_icbm152_t1_tal_nlin_sym_09c_2.jpg" ])
 
-
-            # convert inputs into properly formated tensor
-            # with a single batch dimension
-            inputs = torch.cat( inputs ).unsqueeze_(0)
+               inputs = torch.cat( [ item for sublist in zip(inputs, ref_inputs) for item in sublist ] ).unsqueeze_(0)
+            else:
+              # convert inputs into properly formated tensor
+              # with a single batch dimension
+              inputs = torch.cat( inputs ).unsqueeze_(0)
 
             outputs = model(inputs)
 
