@@ -3,7 +3,6 @@
 # figure 3: network
 dot aqc_net.dot -Tpng -Gsize=9,10\! -Gdpi=300  -o results/paper_figure_3.png
 
-if false ;then
 # figure 2: examples
 montage -tile 4x3 \
   -geometry +1+1 \
@@ -23,4 +22,3 @@ montage -tile 4x3 \
   -label "" label:"C: Reference:\nMNI ICBM 152\n2009c" \
       results/paper_figure_2.png
 
-fi

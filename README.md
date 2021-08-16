@@ -6,15 +6,15 @@ Code for the paper Vladimir S. Fonov, Mahsa Dadar, The PREVENT-AD Research Group
 
 * CPU version 
     ```
-    conda install pytorch-cpu torchvision-cpu -c pytorch 
+    conda install pytorch-cpu==1.7.1 torchvision==0.8.2 cpuonly -c pytorch 
     conda install scikit-image
     ```
 * GPU version
     ```
-    conda install pytorch torchvision -c pytorch 
+    conda install pytorch==1.7.1 torchvision==0.8.2 cudatoolkit=<your cuda version>  -c pytorch 
     conda install scikit-image
     ```
-* (optional) minc toolkit and minc2-simple 
+* (optional) minc toolkit and minc2-simple
    ```
    conda install -c vfonov minc-toolkit-v2 minc2-simple
    ```
@@ -28,29 +28,21 @@ Code for the paper Vladimir S. Fonov, Mahsa Dadar, The PREVENT-AD Research Group
 
 ## Dependencies
 
-* python version (pytorch): `scikit-image tensorboard tensorboardX `, optionally : `minc2-simple`
+* trainig dependencies: `scikit-image tensorboard`, optionally : `minc2-simple`
 * minc2-simple (optional): https://github.com/vfonov/minc2-simple
-* Lua version (torch):`display xlua cudnn optim paths`, optionally: `minc2-simple` 
 
 ## Files
 
 * Shell scripts:
     * `download_minimal_results.sh`  - download pretrained model to run automatic qc
     * `make_figures.sh`  - Draw Figure 2 and 3 for the paper
-* Torch implementation, directory `lua`:
-    * `run_all_cases.sh` - master script to run all experiments mentioned in the paper
-    * `aqc_training.lua` - LUA script to run individual training/testing experiemnt, requires GPU with CUDA
-    * `aqc_apply.lua` - LUA script to apply pre-trained model to existing data (Run automatic QC), runs on CPU by default
-    * `aqc_data.lua` - internal LUA module implementing data loading routines
-    * `aqc_model.lua` - internal LUA module implementing neural net 
-* PyTorch implementation, directory `python`:
+* Directory `python`:
     * `run_all_experiments.sh` - run experiments with different versions of ResNet and SquezeNet
     * `aqc_apply.py` - apply pre-trained network
     * `aqc_convert_to_cpu.py`- helper script to convert network from GPU to CPU 
     * `aqc_data.py` - module to load QC data
     * `aqc_training.py` - deep nearal net training script
     * `model/resnet_qc.py` - module with ResNET implementation, based on https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
-    * `model/squezenet_qc.py` - module with SqueezeNet implementation, based on https://github.com/pytorch/vision/blob/master/torchvision/models/squeezenet.py
     * `model/util.py` - various helper functions
 * Image files:
     * `mni_icbm152_t1_tal_nlin_sym_09c_0.jpg`,`mni_icbm152_t1_tal_nlin_sym_09c_1.jpg`,`mni_icbm152_t1_tal_nlin_sym_09c_2.jpg` - reference slices, needed for both training and running pretrained model
