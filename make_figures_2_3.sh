@@ -1,7 +1,7 @@
 #! /bin/sh
 
 # figure 3: network
-dot aqc_net.dot -Tpng -Gsize=9,10\! -Gdpi=300  -o results/paper_figure_3.png
+dot aqc_net.dot -Tpng -Gsize=9,10\! -Gdpi=300  -o results/Figure_3.png
 
 # figure 2: examples
 montage -tile 4x3 \
@@ -20,5 +20,5 @@ montage -tile 4x3 \
   -label "Sagittal" data/mni_icbm152_t1_tal_nlin_sym_09c_1.jpg \
   -label "Coronal"  data/mni_icbm152_t1_tal_nlin_sym_09c_2.jpg \
   -label "" label:"C: Reference:\nMNI ICBM 152\n2009c" \
-      results/paper_figure_2.png
+      results/Figure_2.png
 
