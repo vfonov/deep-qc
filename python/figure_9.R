@@ -94,36 +94,48 @@ print(cv_cls_%>%group_by(auto_qc)%>%summarize(mean=mean(lin),sd=sd(lin)))
 #    theme(axis.text.x=element_text(angle=45,vjust=0.3))+
 
 p1<-ggplot(cv_cls_,aes(y=lin, x=manual_qc))+
-    theme_bw(base_size = 16)+
+    theme_bw(base_size = 20)+
     theme(
       legend.position = c(.95, .50),
       legend.justification = c("right", "top"),
       legend.box.just = "right",
-      legend.margin = margin(6, 6, 6, 6)
+      plot.margin = margin(6, 0, 6, 6)
     )+
-    geom_violin()+ylim(0,100)+
+    geom_violin()+
+    stat_summary(
+        fun.data = "median_hilow", 
+        geom = "pointrange", color = "black"
+        )+
+    ylim(0,100)+
     xlab('')+ylab('Silver standard distance (mm)')+
     ggtitle("Manual QC")
 
 p2<-ggplot(cv_cls_,aes(y=lin, x=auto_qc))+
-    theme_bw(base_size = 16)+
+    theme_bw(base_size = 20)+
     theme(
       legend.position = c(.95, .50),
       legend.justification = c("right", "top"),
       legend.box.just = "right",
-      legend.margin = margin(6, 6, 6, 6)
+      plot.margin = margin(6, 0, 6, 0),
+      axis.text.y=element_blank()
     )+
-    geom_violin()+ylim(0,100)+
+    geom_violin()+
+    stat_summary(
+        fun.data = "median_hilow", 
+        geom = "pointrange", color = "black"
+        )+
+    ylim(0,100)+
     xlab('')+ylab('')+
     ggtitle("DARQ QCResNET-18")
 
 p3<-ggplot(cv_dist_,aes(y=lin, x=preds))+
-    theme_bw(base_size = 16)+
+    theme_bw(base_size = 20)+
     theme(
       legend.position = c(.95, .50),
       legend.justification = c("right", "top"),
       legend.box.just = "right",
-      legend.margin = margin(6, 6, 6, 6)
+      plot.margin = margin(6, 0, 6, 0),
+      axis.text.y=element_blank()
     )+
     geom_point(alpha=0.7)+
     coord_fixed(xlim=c(0,100),ylim=c(0,100))+
@@ -135,9 +147,9 @@ p3<-ggplot(cv_dist_,aes(y=lin, x=preds))+
 
 
 png("Figure_9_distance_r18.png", 
-    width=30, height=10, res=200, units = "in", 
+    width=20, height=10, res=200, units = "in", 
     pointsize = 12, type='cairo', antialias = "default")
 
-grid.arrange(p1,p2,p3,nrow=1)
+grid.arrange(p1,p2,p3,nrow=1,widths=c(1.5,2.8,4))
 
 q()

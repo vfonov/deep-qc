@@ -24,10 +24,16 @@ for(lr_ in c('0.0001')) {
                 #r_final<-roc(final$labels, final$preds, stratified=F, auc=T)
                 r_best<-roc(best$labels, best$preds, stratified=F, auc=T)
 
-                fold <- bind_rows(
-                    #as.data.frame(rrr$testing_final$summary) %>% mutate(select_kind='final',auc=r_final$auc),
-                    as.data.frame(rrr$testing_best_loss$summary) %>% mutate(select_kind='loss',auc=r_best$auc)) %>%
-                    mutate(fold=f,ref=(r=="_ref"),model=v,lr=lr_, pre=T)
+                #as.data.frame(rrr$testing_final$summary) %>% mutate(select_kind='final',auc=r_final$auc),
+
+                fold <- as.data.frame(rrr$testing_best_loss$summary) %>% 
+                        mutate(select_kind='loss', auc=as.numeric(r_best$auc)) %>%
+                        mutate(fold=f,ref=(r=="_ref"),model=v,lr=lr_, pre=T)
+
+                print(fn)
+                print(head(cv))
+                print(head(fold))
+
                 cv<-bind_rows(cv,fold)
                 }
             }
@@ -53,7 +59,11 @@ tccv<-ccv %>% group_by(model, ref_, pre, lr) %>%
 
 p1<-ggplot(ccv,aes(y=rmse, x=model))+
     theme_bw(base_size = 28)+
-    geom_boxplot()+
+    geom_violin(trim = FALSE,alpha=0.8)+
+    stat_summary(
+        fun.data = "median_hilow", 
+        geom = "pointrange", color = "black"
+        )+
     facet_grid(ref_~.)+ylab('')+
     geom_text(data=tccv, aes(label=rmse_lab, x=model, y=rmse), 
               show.legend = F, size=6, nudge_y=0.2)+
@@ -61,7 +71,11 @@ p1<-ggplot(ccv,aes(y=rmse, x=model))+
 
 p2<-ggplot(ccv,aes(y=auc, x=model))+
     theme_bw(base_size = 28)+
-    geom_boxplot()+
+    geom_violin(trim = FALSE,alpha=0.8)+
+    stat_summary(
+        fun.data = "median_hilow", 
+        geom = "pointrange", color = "black"
+        )+
     facet_grid(ref_~.)+ylab('')+
     geom_text(data=tccv, aes(label=auc_lab, x=model, y=auc), 
               show.legend = F, size=6, nudge_y=0.005)+

@@ -62,15 +62,19 @@ tccv<-tccv %>% mutate( highlite=(score==best_tnr)&(measure=='True negative rate'
 #     geom_hline(data=tccv,aes(x=measure,yintercept=score))+
 
 png("Figure_5_DARQ_CV_performance_10epochs_r18_stopping_criteria.png", 
-    width=20, height=10, res=200, units = "in", 
+    width=20, height=15, res=200, units = "in", 
     pointsize = 12, type='cairo', antialias = "default")
 
 #    theme(axis.text.x=element_text(angle=45,vjust=0.3))+
 ggplot(ccv,aes(y=score,x=select_kind))+
     theme_bw(base_size = 28)+
-    geom_boxplot()+
+    geom_violin(trim = FALSE, alpha=0.8)+
+    stat_summary(
+        fun.data = "median_hilow", 
+        geom = "pointrange", color = "black"
+        )+
     facet_wrap(.~measure, ncol=2)+
-    geom_text(data=tccv, aes(label=score_lab, x=select_kind, y=score,color=highlite),show.legend = F,size=6,nudge_y=0.03)+
+    geom_text(data=tccv, aes(label=score_lab, x=select_kind, y=score, color=highlite), show.legend = F,size=6,nudge_y=0.01,alpha=1.0)+
     scale_colour_manual(labels=c(F,T),values=c('black','red'))+
     xlab('Early stopping criteria')+ylab('')
 
@@ -91,7 +95,7 @@ tccv<-ccv %>% group_by(model, ref_, measure, pre, lr) %>%
 #tccv<-tccv %>% mutate( highlite=(score==best_tnr))
 
 png("Figure_7_DARQ_CV_performance_10epochs_all_models.png", 
-    width=20, height=10, res=200, units = "in", 
+    width=20, height=15, res=200, units = "in", 
     pointsize = 12, type='cairo', antialias = "default")
 
 #    scale_colour_manual(labels=c(F,T), values=c('black','red'))+
@@ -99,9 +103,13 @@ png("Figure_7_DARQ_CV_performance_10epochs_all_models.png",
 
 ggplot(ccv,aes(y=score, x=measure))+
     theme_bw(base_size = 28)+
-    geom_boxplot()+
-    facet_grid(ref_~model)+
+    geom_violin(trim = FALSE,alpha=0.8)+
+    stat_summary(
+        fun.data = "median_hilow", 
+        geom = "pointrange", color = "black"
+        )+
+    facet_grid(ref_~model)+ylab('')+xlab('')+
     geom_text(data=tccv, aes(label=score_lab, x=measure, y=score), 
-              show.legend = F, size=6, nudge_y=0.03)
+              show.legend = F, size=6, nudge_y=0.01)
 
 #     ggtitle('DARQ 8-fold CV, early stopping based on TNR, all models')

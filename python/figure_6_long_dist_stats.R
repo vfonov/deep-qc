@@ -63,14 +63,19 @@ par<-DBI::dbReadTable(con,"xfm_dist") %>%
   mutate(training=as.factor(if_else(variant=='dist','training','testing')))
 
 p1<-ggplot(par,aes(y=lin, x=training))+
-    theme_bw(base_size = 16)+
+    theme_bw(base_size = 28)+
     theme(
       legend.position = c(.95, .50),
       legend.justification = c("right", "top"),
       legend.box.just = "right",
       legend.margin = margin(6, 6, 6, 6)
     )+
-    geom_violin()+ylim(0,100)+
+    geom_violin()+
+    stat_summary(
+        fun.data = "median_hilow", 
+        geom = "pointrange", color = "black"
+        )+
+    ylim(0,100)+
     xlab('')+ylab('Distance (mm)')+
     ggtitle("Distance distributions")
 
@@ -78,7 +83,7 @@ p1<-ggplot(par,aes(y=lin, x=training))+
 online_m <- online 
 
 p2<-ggplot(online_m, aes(y=loss, x=f_epoch))+
-    theme_bw(base_size = 16)+
+    theme_bw(base_size = 28)+
     theme(
       legend.position = c(.95, .50),
       legend.justification = c("right", "top"),
@@ -128,7 +133,7 @@ final_detail<-final_detail%>%mutate(model_=factor(model,levels=models,labels=mod
 # best_detail<-best_detail%>%mutate(model_=factor(model,levels=models,labels=models2_))
 
 p3<-ggplot(data=final_detail,aes(y=dist,x=preds, color=model_))+
-  theme_bw(base_size = 14)+
+  theme_bw(base_size = 28)+
   theme(
     legend.position = c(.95, .50),
     legend.justification = c("right", "top"),
@@ -177,7 +182,7 @@ for(s in models) {
                         ) %>% mutate(model=a)
                    )
 
-    auc_s<-bind_rows(auc_s, data.frame(auc=r$auc, model=s))
+    auc_s<-bind_rows(auc_s, data.frame(auc=as.numeric(r$auc), model=s))
 
     ## 
     # ss<-best_detail%>%filter(model==s)
@@ -206,7 +211,7 @@ auc<-bind_rows(auc,data.frame(
                     ) %>% mutate(model=a)
                 )
 
-auc_s<-bind_rows(auc_s, data.frame(auc=rref$auc, model='Silver standard'))
+auc_s<-bind_rows(auc_s, data.frame(auc=as.numeric(rref$auc), model='Silver standard'))
 
 auc<-auc %>%  mutate(model=factor(model,levels=models_))
 auc_s<-auc_s %>%  mutate(model=factor(model,levels=c(models,'Silver standard')))
@@ -214,7 +219,7 @@ auc_s<-auc_s %>%  mutate(model=factor(model,levels=c(models,'Silver standard')))
 print(auc_s)
 
 p4<-ggplot(data=auc,aes(y=tpr,x=fpr, color=model))+
-  theme_bw(base_size = 14)+
+  theme_bw(base_size = 28)+
   theme(
     legend.position = c(.95, .50),
     legend.justification = c("right", "top"),
@@ -228,7 +233,7 @@ p4<-ggplot(data=auc,aes(y=tpr,x=fpr, color=model))+
   ggtitle("ROC on distance for predicting Pass/Fail")
 
 
-png("Figure_6_distance_training.png", width=10, height=10, res=200, units = "in", pointsize = 12, type='cairo', antialias = "default")
+png("Figure_6_distance_training.png", width=20, height=20, res=200, units = "in", pointsize = 12, type='cairo', antialias = "default")
 
 grid.arrange(p1,p2,p3,p4)
 
