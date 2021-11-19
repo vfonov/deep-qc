@@ -75,10 +75,17 @@ if __name__ == '__main__':
 
 
     if params.load is None:
-        params.load = default_data_dir + os.sep \
-            + ('dist' if params.dist else 'cls')+os.sep \
-            + 'model_' + params.net + ('_ref' if params.ref else '') + os.sep + \
-            'best_tnr.pth' # if params.gpu else 'best_tnr_cpu.pth' )
+
+        if params.dist:
+            params.load = default_data_dir + os.sep \
+                + 'dist' + os.sep \
+                + 'model_dist_' + params.net + ('_ref' if params.ref else '') + os.sep + \
+                'best_loss.pth' 
+        else:
+            params.load = default_data_dir + os.sep \
+                + 'cls' + os.sep \
+                + 'model_' + params.net + ('_ref' if params.ref else '') + os.sep + \
+                'best_tnr.pth'
 
     if not os.path.exists(params.load):
        print("Missing model:",params.load,file=sys.stderr)
