@@ -106,13 +106,100 @@ def load_minc_images(path,winsorize_low=5,winsorize_high=95):
 
         sz = input_images[i].shape
         # pad image 
-        dummy = np.zeros((256, 256),)
+        dummy = np.full((256, 256),-0.5)
         dummy[int((256-sz[0])/2): int((256-sz[0])/2)+sz[0], int((256-sz[1])/2): int((256-sz[1])/2)+sz[1]] = input_images[i]
 
         # crop
         input_images[i]=dummy[16:240,16:240]
    
     return [torch.from_numpy(i).float().unsqueeze_(0) for i in input_images]
+
+def load_talairach_mgh_images(path,winsorize_low=5,winsorize_high=95):
+    import nibabel as nib
+    import numpy as np
+    from nibabel.affines import apply_affine
+    import numpy.linalg as npl
+
+    img = nib.load(path)
+    img_data = img.get_fdata()
+    sz=img_data.shape
+
+    icbm_origin=np.array([193/2-96, 229/2-132, 193/2-78])
+
+    icbm_origin_x=icbm_origin+np.array([1,0,0])
+    icbm_origin_y=icbm_origin+np.array([0,1,0])
+    icbm_origin_z=icbm_origin+np.array([0,0,1])
+
+    icbm_to_vox=npl.inv(img.affine) #
+
+    center=apply_affine(icbm_to_vox, icbm_origin)
+
+    _x=apply_affine(icbm_to_vox, icbm_origin_x)-center
+    _y=apply_affine(icbm_to_vox, icbm_origin_y)-center
+    _z=apply_affine(icbm_to_vox, icbm_origin_z)-center
+
+    ix=np.argmax(np.abs(_x))
+    iy=np.argmax(np.abs(_y))
+    iz=np.argmax(np.abs(_z))
+
+    center_=np.rint(center).astype(int)
+
+    # transpose according to what we need
+    img_data = np.transpose(img_data,axes=[ix, iy, iz])
+    center_ = np.take(center_,[ix, iy, iz])
+    sz = img_data.shape
+
+    if _x[ix]<0:
+        img_data=np.flip(img_data,axis=0)
+        center_[0]=sz[0]-center_[0]
+    if _y[iy]<0:
+        img_data=np.flip(img_data,axis=1)
+        center_[1]=sz[1]-center_[0]
+    if _z[iz]<0:
+        img_data=np.flip(img_data,axis=2)
+        center_[2]=sz[2]-center_[0]
+
+    slice_0 = np.take(img_data,center_[0],0)
+    slice_1 = np.take(img_data,center_[1],1)
+    slice_2 = np.take(img_data,center_[2],2)
+
+    # adjust FOV, need to pad Y by 4 voxels
+    # Y-Z 
+    slice_0 = np.pad(slice_0[:,50:(50+193)],((4,0),(0,0)),constant_values=(0.0, 0.0),mode='constant')[0:229,:]
+    # X-Z
+    slice_1 = slice_1[31:(31+193),50:(50+193)]
+    # X-Y
+    slice_2 = np.pad(slice_2[31:(31+193),:],((0,0),(4,0)),constant_values=(0.0, 0.0),mode='constant')[:,0:229]
+
+    input_images = [slice_2.T,
+                    slice_0.T,
+                    slice_1.T
+                    ]
+
+     # normalize between 5 and 95th percentile
+    _all_voxels=np.concatenate( tuple(( np.ravel(i) for i in input_images)) )
+    # _all_voxels=input_minc[:,:,:] # this is slower
+    _min=np.percentile(_all_voxels,winsorize_low)
+    _max=np.percentile(_all_voxels,winsorize_high)
+    input_images = [(i-_min)*(1.0/(_max-_min))-0.5 for i in input_images]
+    
+    # flip, resize and crop
+    for i in range(3):
+        # 
+        _scale = min(256.0/input_images[i].shape[0],256.0/input_images[i].shape[1])
+        # vertical flip and resize
+        input_images[i] = transform.rescale(input_images[i][::-1, :], _scale, mode='constant', clip=False, anti_aliasing=False, multichannel=False)
+
+        sz = input_images[i].shape
+        # pad image 
+        dummy = np.full((256, 256),-0.5)
+        dummy[int((256-sz[0])/2): int((256-sz[0])/2)+sz[0], int((256-sz[1])/2): int((256-sz[1])/2)+sz[1]] = input_images[i]
+
+        # crop
+        input_images[i]=dummy[16:240,16:240]
+   
+    return [torch.from_numpy(i).float().unsqueeze_(0) for i in input_images]
+
 
 
 def init_cv(dataset, fold=0, folds=8, validation=5, shuffle=False, seed=None):

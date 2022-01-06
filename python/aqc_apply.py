@@ -6,6 +6,7 @@
 # @date 13/04/2018
 import argparse
 import os
+from re import sub
 import sys
 
 import numpy as np
@@ -63,6 +64,10 @@ def parse_options():
                         help='Run inference in gpu')
     parser.add_argument("--dist",action="store_true",default=False,
                         help="Predict misregistration distance instead of class membership")
+    parser.add_argument("--freesurfer",default=None,
+                        help="Process freesurfer output from recon all, provide subject directory, need mri_convert and nibabel ")
+    parser.add_argument('--debug', action="store_true", default=False,
+                        help='Print debug messages')
 
     params = parser.parse_args()
     
@@ -145,6 +150,7 @@ if __name__ == '__main__':
             elif params.volume is not None:
                 tmpdir=None
                 volume=params.volume
+
                 if params.resample is not None:
                     import tempfile,subprocess,shutil
                     tmpdir=tempfile.mkdtemp(prefix='deep_qc')
@@ -156,13 +162,39 @@ if __name__ == '__main__':
                             '-step', '1', '1', '1',
                             '-start', '-96', '-132', '-78',
                             '-nelements', '193', '229', '193', params.volume, tmp_vol,'-tfm_input_sampling']
-                        subprocess.check_call(args)
+                        subprocess.check_call(args,stdout=subprocess.DEVNULL if not params.debug else None,stderr=subprocess.DEVNULL if not params.debug else None)
                     except:
                         shutil.rmtree(tmpdir)
                         raise
                     volume=tmp_vol
+                
                 inputs = load_minc_images(volume,winsorize_low=params.low,winsorize_high=params.high)
                 if tmpdir is not None:
+                    shutil.rmtree(tmpdir)
+            elif params.freesurfer is not None:
+                in_mgz=params.freesurfer+os.sep+'mri'+os.sep+'orig.mgz'
+                in_xfm=params.freesurfer+os.sep+'mri'+os.sep+'transforms'+os.sep+'talairach.xfm'
+                if not os.path.exists(in_mgz):
+                    print("Missing freesurfer file:{}".format(in_mgz),file=sys.stderr)
+                    exit(1)
+                if not os.path.exists(in_xfm):
+                    print("Missing freesurfer file:{}".format(in_xfm),file=sys.stderr)
+                    exit(1)
+                import tempfile,subprocess,shutil
+                try:
+                    tmpdir=tempfile.mkdtemp(prefix='deep_qc')
+                    tmp_vol=tmpdir+os.sep+'tmp.mgh'
+                    args=['mri_convert', in_mgz , 
+                          '--apply_transform',in_xfm, 
+                          '-oc', '0', '0', '0', 
+                          '-vs','1', '1', '1',
+                          tmp_vol]
+                    subprocess.check_call(args,stdout=subprocess.DEVNULL if not params.debug else None,stderr=subprocess.DEVNULL if not params.debug else None)
+                    inputs = load_talairach_mgh_images(tmp_vol,winsorize_low=params.low,winsorize_high=params.high)
+                    # from skimage import io
+                    # for i,j in enumerate(inputs):
+                    #     io.imsave(f"debug_{i}.jpg",np.clip( ((inputs[i]+0.5)*255).squeeze().numpy(),0,255).astype('uint8'))
+                finally:
                     shutil.rmtree(tmpdir)
             else:
                 print("Specify input volume or image prefix or batch list, see help with --help",file=sys.stderr)
