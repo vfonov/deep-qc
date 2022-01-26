@@ -120,17 +120,26 @@ def load_talairach_mgh_images(path,winsorize_low=5,winsorize_high=95):
     from nibabel.affines import apply_affine
     import numpy.linalg as npl
 
+    # conversion from MNI305 space to ICBM-152 space,according to $FREESURFER_HOME/average/mni152.register.dat
+    mni305_to_icb152 = np.array( [ [ 9.975314e-01, -7.324822e-03, 1.760415e-02, 9.570923e-01   ], 
+                                   [ -1.296475e-02, -9.262221e-03, 9.970638e-01, -1.781596e+01 ],
+                                   [ -1.459537e-02, -1.000945e+00, 2.444772e-03, -1.854964e+01 ],
+                                   [ 0, 0, 0, 1 ] ] )
+    
+    icbm152_to_mni305 = npl.inv(mni305_to_icb152)
+
     img = nib.load(path)
     img_data = img.get_fdata()
     sz=img_data.shape
+    
+    # transformation from ICBM152 space to the Voxel space in the Freesurfer MNI305 file 
+    icbm_to_vox=npl.inv(icbm152_to_mni305 @ img.affine) #
 
     icbm_origin=np.array([193/2-96, 229/2-132, 193/2-78])
-
     icbm_origin_x=icbm_origin+np.array([1,0,0])
     icbm_origin_y=icbm_origin+np.array([0,1,0])
     icbm_origin_z=icbm_origin+np.array([0,0,1])
 
-    icbm_to_vox=npl.inv(img.affine) #
 
     center=apply_affine(icbm_to_vox, icbm_origin)
 

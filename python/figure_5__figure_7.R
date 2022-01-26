@@ -16,11 +16,11 @@ for(lr_ in c('0.0001')) {
                 rrr=fromJSON(fn)
 
                 fold <- bind_rows(
-                    as.data.frame(rrr$testing_final$summary)   %>%mutate(select_kind='final'),
-                    as.data.frame(rrr$testing_best_acc$summary)%>%mutate(select_kind='acc'),
-                    as.data.frame(rrr$testing_best_auc$summary)%>%mutate(select_kind='auc'),
-                    as.data.frame(rrr$testing_best_tpr$summary)%>%mutate(select_kind='tpr'),
-                    as.data.frame(rrr$testing_best_tnr$summary)%>%mutate(select_kind='tnr')) %>%
+                    as.data.frame(rrr$testing_final$summary)   %>%mutate(select_kind='Final'),
+                    as.data.frame(rrr$testing_best_acc$summary)%>%mutate(select_kind='ACC'),
+                    as.data.frame(rrr$testing_best_auc$summary)%>%mutate(select_kind='AUC'),
+                    as.data.frame(rrr$testing_best_tpr$summary)%>%mutate(select_kind='TPR'),
+                    as.data.frame(rrr$testing_best_tnr$summary)%>%mutate(select_kind='TNR')) %>%
                     mutate(fold=f,ref=(r=="_ref"),model=v,lr=lr_, pre=T)
                 cv<-bind_rows(cv,fold)
                 }
@@ -36,22 +36,20 @@ cv<-cv%>%mutate(model=factor(model, levels=models))
 cv_<-cv %>% filter(model=='r18',ref==T)
 # all these are pretrained
 
-
 cv_<-cv_ %>% mutate( 
-    select_kind=factor(select_kind, levels=c('final', 'auc', 'acc', 'tpr', 'tnr') ),
+    select_kind=factor(select_kind, levels=c('Final', 'AUC', 'ACC', 'TPR', 'TNR') ),
     lr=as.factor(lr))
 
 ccv<-cv_ %>% gather(`acc`,`tpr`,`tnr`,`auc`, key='measure', value='score') %>% 
-         mutate(measure=factor(measure,levels=c('acc','auc','tpr','tnr'),
+         mutate(measure=factor(measure, levels=c('acc','auc','tpr','tnr'),
                 labels=c('Accuracy','Area under ROC curve',
                          'True positive rate',
                          'True negative rate')),
-                select_kind=factor(select_kind, levels=c('acc','auc','tpr','tnr','final'),
-                               labels=c('ACC','AUC','TPR',
-                         'TNR','No early\nstopping') ) )
+                select_kind=factor(select_kind, levels=c('ACC','AUC','TPR', 'TNR','Final'),
+                               labels=c('ACC','AUC','TPR', 'TNR','No early\nstopping') ) )
 
 tccv<-ccv %>% group_by(measure, model, ref, select_kind, pre, lr) %>% 
-  summarize( score=median(score), score_lab=signif(score,4)) %>%ungroup()
+  summarize( score=median(score), score_lab=signif(score,4)) %>% ungroup()
 
 # select the best TNR
 best_tnr<-max( (tccv%>%filter(measure=='True negative rate'))$score)
@@ -80,17 +78,16 @@ ggplot(ccv,aes(y=score,x=select_kind))+
 
 #     ggtitle('DARQ ResNet18 with reference, 8-fold CV')+
 
-
-
 # focus only on best TNR
-ccv<-cv %>%  filter(select_kind=='tnr') %>%
+ccv<-cv %>%  filter(select_kind=='TNR') %>%
     gather(`acc`,`tpr`,`tnr`,`auc`, key='measure', value='score') %>% 
-    mutate(measure=factor(measure,levels=c('acc','auc','tpr','tnr')),
+    mutate(measure=factor(measure,levels=c('acc','auc','tpr','tnr'),labels=c('ACC','AUC','TPR', 'TNR')),
                ref_=factor(ref, levels=c(FALSE, TRUE), labels=c('No Reference','With Reference')))
+
 
 tccv<-ccv %>% group_by(model, ref_, measure, pre, lr) %>% 
   summarize( score=median(score), score_lab=signif(score,4)) %>% ungroup()
-
+  
 # highlite
 #tccv<-tccv %>% mutate( highlite=(score==best_tnr))
 

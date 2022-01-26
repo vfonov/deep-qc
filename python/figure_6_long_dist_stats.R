@@ -60,7 +60,7 @@ con<-DBI::dbConnect(RSQLite::SQLite(), "../data/qc_db.sqlite3")
 # CREATE TABLE IF NOT EXISTS xfm_dist(variant,cohort,subject,visit,pass,lin,rx,ry,rz,tx,ty,tz,sx,sy,sz)
 par<-DBI::dbReadTable(con,"xfm_dist") %>% 
   mutate(variant=as.factor(variant),cohort=as.factor(cohort)) %>%
-  mutate(training=as.factor(if_else(variant=='dist','training','testing')))
+  mutate(training=as.factor(if_else(variant=='dist','Training','Testing')))
 
 p1<-ggplot(par,aes(y=lin, x=training))+
     theme_bw(base_size = 28)+
@@ -91,7 +91,7 @@ p2<-ggplot(online_m, aes(y=loss, x=f_epoch))+
       legend.margin = margin(6, 6, 6, 6)
     )+
     geom_line()+
-    xlab('Epoch')+ylab('Meas Square Error')+
+    xlab('Epoch')+ylab('Mean Square Error')+
     guides(color=guide_legend(title=""))+
     ggtitle("Online validation")
 
@@ -173,12 +173,12 @@ mylogit.inv<-function(x) 1/(1+exp(-x))
 for(s in models) {
     ss<-final_detail%>%filter(model==s)
     r<-roc(ss$labels, mylogit.inv(ss$preds-10), stratified=T,auc=T) # 
-    a<-paste(s,' estimate auc:',format(r$auc,digits=3))
+    a<-paste(s,' estimate AUC:',format(r$auc,digits=3))
     models_<-c(models_,a)
 
     auc<-bind_rows(auc,data.frame(
-                         tpr=r$sensitivities,
-                         fpr=1.0-r$specificities
+                         TPR=r$sensitivities,
+                         FPR=1.0-r$specificities
                         ) %>% mutate(model=a)
                    )
 
@@ -202,12 +202,12 @@ for(s in models) {
 
 ss<-final_detail%>%filter(model=='r18')
 rref<-roc(ss$labels, mylogit.inv(ss$dist-10), stratified=T,auc=T) # 
-a<-paste('Silver standard','auc:',format(rref$auc,digits=3))
+a<-paste('Silver standard','AUC:',format(rref$auc,digits=3))
 models_<-c(models_,a)
 
 auc<-bind_rows(auc,data.frame(
-                      tpr=rref$sensitivities,
-                      fpr=1.0-rref$specificities
+                      TPR=rref$sensitivities,
+                      FPR=1.0-rref$specificities
                     ) %>% mutate(model=a)
                 )
 
@@ -218,7 +218,7 @@ auc_s<-auc_s %>%  mutate(model=factor(model,levels=c(models,'Silver standard')))
 
 print(auc_s)
 
-p4<-ggplot(data=auc,aes(y=tpr,x=fpr, color=model))+
+p4<-ggplot(data=auc,aes(y=TPR,x=FPR, color=model))+
   theme_bw(base_size = 28)+
   theme(
     legend.position = c(.95, .50),
@@ -236,4 +236,3 @@ p4<-ggplot(data=auc,aes(y=tpr,x=fpr, color=model))+
 png("Figure_6_distance_training.png", width=20, height=20, res=200, units = "in", pointsize = 12, type='cairo', antialias = "default")
 
 grid.arrange(p1,p2,p3,p4)
-
