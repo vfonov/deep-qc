@@ -132,6 +132,10 @@ def parse_options():
                         help="Use reference images")
     parser.add_argument("output", type=str, 
                         help="Output prefix")
+    parser.add_argument("--data", type=str, default="../data",
+                        help="Data prefix")
+    parser.add_argument("--db", type=str, default="qc_db.sqlite3",
+                        help="DB file")
     parser.add_argument("--load", type=str, default=None,
                         help="Load pretrained model")
     parser.add_argument("--val",action="store_true",default=False,
@@ -182,8 +186,8 @@ def parse_options():
 
 if __name__ == '__main__':
     params = parse_options()
-    data_prefix = "../data"
-    db_name = "qc_db.sqlite3"
+    data_prefix = params.data
+    db_name = params.db
     params.ref = params.ref
     grad_norm = params.clip
     regularize_l2 = params.l2
@@ -283,7 +287,9 @@ if __name__ == '__main__':
     training_log = []
     validation_log = []
     testing_log = []
-
+    # DEBUG
+    # torch.autograd.set_detect_anomaly(True)
+    # DEBUG
     for epoch in range(params.n_epochs):
         print('Epoch {}/{}'.format(epoch+1, params.n_epochs))
         print('-' * 10)

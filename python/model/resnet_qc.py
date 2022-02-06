@@ -166,7 +166,7 @@ class ResNetQC(nn.Module):
         self.conv1 = nn.Conv2d(2 if self.use_ref else 1, self.inplanes, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = norm_layer(self.inplanes)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
@@ -182,17 +182,17 @@ class ResNetQC(nn.Module):
         self.addon = nn.Sequential(
             nn.Conv2d(self.feat * 512 * block.expansion, 512*block.expansion, kernel_size=1, stride=1, padding=0, bias=True),
             nn.BatchNorm2d(512*block.expansion),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Conv2d(512*block.expansion, 32, kernel_size=1, stride=1, padding=0,bias=True),
             nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Conv2d(32, 32, kernel_size=7, stride=1, padding=0,bias=True),
             nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Conv2d(32, 32, kernel_size=1, stride=1, padding=0,bias=True),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=False),
-            nn.Dropout2d(p=0.5,inplace=True),
+            nn.Dropout2d(p=0.5,inplace=False),
             nn.Conv2d(32, num_classes, kernel_size=1, stride=1, padding=0, bias=True)
             )
         # initialization

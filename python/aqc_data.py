@@ -58,7 +58,8 @@ def load_full_db(qc_db_path,
                     print("Check:", qc_file)
                 else:
                     qc_files. append(qc_file)
-
+            if dist is None:
+               dist=-1 # hack
             if len(qc_files) == feat:
                 samples.append( QC_entry( _id, status, qc_files, variant, cohort, subject, visit, float(dist) ))
         
