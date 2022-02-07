@@ -3,7 +3,7 @@
 pfx=cls_pp
 lr=0.0001
 mkdir -p $pfx
-set -e
+#set -e
 
 # train with reference
 for m in \
