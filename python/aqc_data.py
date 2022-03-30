@@ -23,7 +23,8 @@ def load_full_db(qc_db_path,
                 data_prefix, 
                 validate_presence=False, 
                 feat=3, table="qc_all", 
-                use_variant_dist=None):
+                use_variant_dist=None,
+                dist_threshold=None):
     """Load complete QC database into memory
     """
     import sqlite3
@@ -45,8 +46,13 @@ def load_full_db(qc_db_path,
         for line in qc_db.execute(query):
             variant, cohort, subject, visit, path, xfm, _pass, dist = line
 
-            if _pass == 'TRUE': status=1 
-            else: status=0 
+            if _pass == 'TRUE': status=1
+            else: status=0
+
+            dist=float(dist)
+
+            if dist_threshold is not None:
+                status=1 if dist<dist_threshold else 0
 
             _id='{}:{}:{}:{}'.format(variant, cohort, subject, visit)
 
@@ -58,10 +64,12 @@ def load_full_db(qc_db_path,
                     print("Check:", qc_file)
                 else:
                     qc_files. append(qc_file)
+            
             if dist is None:
                dist=-1 # hack
+            
             if len(qc_files) == feat:
-                samples.append( QC_entry( _id, status, qc_files, variant, cohort, subject, visit, float(dist) ))
+                samples.append( QC_entry( _id, status, qc_files, variant, cohort, subject, visit, dist ))
         
         return samples
 

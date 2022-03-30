@@ -179,6 +179,8 @@ def parse_options():
                         help="Balance validation and testing sample")
     parser.add_argument("--dist",action="store_true",default=False,
                         help="Predict misregistration distance instead of class membership")
+    parser.add_argument("--dist_threshold",type=float,
+                        help="Train on thresholded distance")
 
     params = parser.parse_args()
     
@@ -195,6 +197,7 @@ if __name__ == '__main__':
     warmup_lr = params.warmup_lr
     warmup_iter = params.warmup_iter
     predict_dist = params.dist
+    dist_threshold = params.dist_threshold
     
     all_samples_main = load_full_db(data_prefix + os.sep + db_name, 
                    data_prefix, True, table="qc_all")
@@ -202,7 +205,8 @@ if __name__ == '__main__':
     # if distance training is required 
     all_samples_aug = load_full_db(data_prefix + os.sep + db_name, 
                    data_prefix, True, table="qc_all_aug",
-                   use_variant_dist=params.dist )
+                   use_variant_dist=(predict_dist or (dist_threshold is not None)),
+                   dist_threshold=dist_threshold)
 
     print("Main samples: {}".format(len(all_samples_main)))
     print("Aug  samples: {}".format(len(all_samples_aug)))
