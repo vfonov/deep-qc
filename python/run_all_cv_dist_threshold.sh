@@ -7,7 +7,7 @@ threshold=15.80272 # based on LR
 pfx=thr/lr_${lr}_pre
 mkdir -p $pfx
 
-for m in r18,10,196  ;do # r34,10,128 r50,10,80 r101,10,48 r152,10,32 
+for m in r18,10,196 r34,10,128 r50,10,80 r101,10,48 r152,10,32  ;do 
  i=( ${m//,/ } )
  for ref in Y N;do
    if [[ $ref == Y ]];then 
